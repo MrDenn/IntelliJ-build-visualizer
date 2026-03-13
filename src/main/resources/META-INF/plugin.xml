@@ -21,7 +21,8 @@
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
 
     <depends>com.intellij.java</depends>
-    <depends>org.jetbrains.kotlin</depends>
+    <depends>com.intellij.gradle</depends>
+
     <resource-bundle>messages.MyMessageBundle</resource-bundle>
     <!-- Extensions defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
