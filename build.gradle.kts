@@ -16,6 +16,9 @@ repositories {
 
 // Read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
 dependencies {
+    implementation("org.jgrapht:jgrapht-core:1.5.2")
+    implementation("com.github.vlsi.mxgraph:jgraphx:4.2.2")
+
     intellijPlatform {
         intellijIdea("2025.2.4")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)

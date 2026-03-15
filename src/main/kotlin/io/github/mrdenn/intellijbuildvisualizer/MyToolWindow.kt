@@ -4,8 +4,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.SimpleToolWindowPanel
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
-import com.intellij.ui.components.JBScrollPane
-import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.content.ContentFactory
 import java.awt.BorderLayout
 
@@ -36,44 +34,19 @@ class MyToolWindowFactory : ToolWindowFactory {
     }
 
     /**
-     * Placeholder UI for the Build Visualizer tool window.
+     * UI in the form of directed graph for the Build Visualizer tool window.
      *
      * Queries the project's module dependency graph via [buildDependencyGraph] and renders
-     * it as a plain-text adjacency list inside a scrollable text area. This is a diagnostic
-     * view used to verify that module and dependency data is being read correctly before
-     * a proper graph visualisation is implemented.
+     * it as a directed graph using JGraphX inside a [DependencyGraphPanel].
      *
      * @param project the currently open IntelliJ [Project], used to query module structure
      */
     class MyToolWindow(project: Project) {
 
-        // SimpleToolWindowPanel is used instead of JBPanel because of strange behavior when combined
-        // with JBScrollPane. Since this is a temporary solution, this will be reworked later anyway.
         private val content = SimpleToolWindowPanel(true).apply {
             val graph = buildDependencyGraph(project)
-
-            // Format the adjacency list as human-readable text: one module per block,
-            // listing each direct dependency by name, or "(none)" if there are none.
-            val sb = StringBuilder()
-            for ((node, deps) in graph) {
-                sb.appendLine("${node.name} depends on:")
-                if (deps.isEmpty()) {
-                    sb.appendLine("  (none)")
-                } else {
-                    deps.forEach { dep -> sb.appendLine("  - ${dep.name}") }
-                }
-                sb.appendLine()
-            }
-
-            // wrapStyleWord ensures wrapping occurs at word boundaries rather than
-            // mid-word, which matters for long fully-qualified module names.
-            val textArea = JBTextArea(sb.toString()).apply {
-                isEditable = false
-                lineWrap = true
-                wrapStyleWord = true  // wrap at word boundaries, not mid-word
-            }
-
-            add(JBScrollPane(textArea), BorderLayout.CENTER)
+            val graphPanel = DependencyGraphPanel(graph)
+            add(graphPanel, BorderLayout.CENTER)
         }
 
         /**
