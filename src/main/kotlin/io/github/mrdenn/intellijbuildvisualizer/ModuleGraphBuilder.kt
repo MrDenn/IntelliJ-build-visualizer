@@ -8,36 +8,52 @@ import org.jgrapht.graph.DefaultDirectedGraph
 import org.jgrapht.graph.DefaultEdge
 
 /**
+ * Suffix that IntelliJ appends to the module representing a Gradle source set's
+ * main compilation unit. IntelliJ's module-per-source-set architecture splits
+ * every Gradle subproject into multiple IntelliJ modules (e.g. "app", "app.main",
+ * "app.test"). Only the ".main" modules correspond to production source sets -
+ * the actual compilation units whose changes trigger downstream recompilation.
+ */
+private const val MAIN_SOURCE_SET_SUFFIX = ".main"
+
+/**
  * Builds a JGraphT directed graph of inter-module dependencies for the given [project].
  *
- * Each vertex is a module name (String). A directed edge from A to B means
- * "module A depends on module B". Only dependencies between modules within
- * the same project are included — library, SDK, and transitive dependencies
- * are excluded.
+ * Only modules representing Gradle **main source sets** (names ending in ".main")
+ * are included. Umbrella modules (no suffix), test modules (".test"), and other
+ * source sets are filtered out, since they are not part of the production
+ * dependency chain that causes recompilation cascades.
+ *
+ * Each vertex is a display name (the module name with the ".main" suffix stripped).
+ * A directed edge from A to B means "module A depends on module B".
  *
  * @param project the currently open IntelliJ [Project]
- * @return a directed graph where vertices are module names and edges represent dependencies
+ * @return a directed graph where vertices are module display names and edges
+ *         represent compilation dependencies
  */
 fun buildDependencyGraph(project: Project): Graph<String, DefaultEdge> {
     val graph = DefaultDirectedGraph<String, DefaultEdge>(DefaultEdge::class.java)
-    val modules = ModuleManager.getInstance(project).modules
+    val allModules = ModuleManager.getInstance(project).modules
 
-    // Index module names for O(1) membership checks when resolving dependencies
-    val moduleNames = modules.associate { it to it.name }
+    // Filter to main source set modules only and build a lookup map
+    // from the raw Module object to a clean display name (suffix stripped).
+    // This map doubles as the dependency lookup when resolving edges.
+    val mainModules = allModules
+        .filter { it.name.endsWith(MAIN_SOURCE_SET_SUFFIX) }
+        .associateWith { it.name.removeSuffix(MAIN_SOURCE_SET_SUFFIX) }
 
-    // Add all modules as vertices
-    for (module in modules) {
-        graph.addVertex(moduleNames[module])
+    // Add all main modules as vertices
+    for (displayName in mainModules.values) {
+        graph.addVertex(displayName)
     }
 
-    // Add dependency edges
-    for (module in modules) {
-        val moduleName = moduleNames[module] ?: continue
+    // Add dependency edges between main modules
+    for ((module, displayName) in mainModules) {
         for (dep in ModuleRootManager.getInstance(module).dependencies) {
-            val depName = moduleNames[dep]
-            // Only add edges to modules within the project (skip unloaded/synthetic modules)
-            if (depName != null) {
-                graph.addEdge(moduleName, depName)
+            val depDisplayName = mainModules[dep]
+            // Only add edges to other main modules within the project
+            if (depDisplayName != null) {
+                graph.addEdge(displayName, depDisplayName)
             }
         }
     }
