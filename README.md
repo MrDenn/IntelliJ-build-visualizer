@@ -46,12 +46,40 @@ This visualization will both be a passive and an active indicator of build execu
 ## Planned Features [MoSCoW]
 
 ### Must
-- **Dependency Graph** in the bottom right
-- A directed graph, showing module dependencies
-- ABI-incompatibility warning
+- **Dependency Graph** tool window showing inter-module dependencies as a directed graph
+- Graceful handling of non-Gradle projects (empty state message)
+- Post-build node coloring reflecting per-module outcome (compiled / skipped / failed)
+- Pre-build impact preview: highlight changed modules and their transitive dependents based on the current changelist
+- ABI-incompatibility warning banner when a changelist contains public API changes
+
 ### Should
-- Real-time updates to graph during the build
+- Real-time node state updates during the build (compiling / done / failed as tasks progress)
+- Graph refresh on Gradle project reload / sync
+- PSI-based ABI heuristic distinguishing public signature changes from internal-only edits
+
 ### Could
-- _
+- Node detail panel on click (module name, Gradle path, last build status)
+- View toggle between structure-only, last-build overlay, and changelist impact overlay
+- Toolbar actions for zoom in / zoom out / fit to screen
+
 ### Won't
-- _
+- Support for build systems other than Gradle
+  - This would likely require a complete rewrite and is too complex for a proof of concept
+- Exact ABI equivalence
+  - Gradle uses a heuristic system, and replicating its incremental compilation logic is out of scope for a prototype
+
+## Design Decisions [Current implementation]
+
+### Dependency data gathering
+- ModuleManager is used to query all available modules
+- Only ".main" modules are kept, as they should represent the module code itself
+- ModuleRootManager is used to query dependencies for each remaining module
+- Modules and dependencies do not update unless plugin is restarted
+- JGraphT is used to store the data instead of a custom data type, since it works well with JGraphX and is 
+  sufficient for a prototype
+### Graph visualization
+- JGraphX is used to display the JGraphT object
+  - Even though it's not as customizeable as a custom rendering engine, it provides enough flexibility to make the 
+    proof of concept look good
+- Nodes represent modules, directed edges represent dependencies
+- JBUI is used for (somewhat) dynamic coloring that adapts to the selected theme (Light/Dark)
