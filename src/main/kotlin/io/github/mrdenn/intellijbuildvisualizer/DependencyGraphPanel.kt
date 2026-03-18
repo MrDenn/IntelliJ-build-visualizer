@@ -35,6 +35,7 @@ class DependencyGraphPanel(
 
     init {
         configureStyles()
+        graph.isAutoSizeCells = true
         populateGraph(jGraphTGraph)
         applyLayout()
 
@@ -98,6 +99,19 @@ class DependencyGraphPanel(
         vertexStyle[mxConstants.STYLE_FONTSIZE] = JBUI.scaleFontSize(12f)
         vertexStyle[mxConstants.STYLE_FONTSTYLE] = 0
 
+        vertexStyle[mxConstants.STYLE_ALIGN] = mxConstants.ALIGN_CENTER
+        vertexStyle[mxConstants.STYLE_VERTICAL_ALIGN] = mxConstants.ALIGN_MIDDLE
+        vertexStyle[mxConstants.STYLE_LABEL_POSITION] = mxConstants.ALIGN_CENTER
+        vertexStyle[mxConstants.STYLE_VERTICAL_LABEL_POSITION] = mxConstants.ALIGN_MIDDLE
+
+        // Manually set padding to adjust for terrible text centering done by Swing
+        val padding = JBUI.scale(8)
+        vertexStyle[mxConstants.STYLE_SPACING_TOP] = padding
+        vertexStyle[mxConstants.STYLE_SPACING_BOTTOM] = padding * 6 / 10
+        vertexStyle[mxConstants.STYLE_SPACING_LEFT] = padding * 10 / 9
+        vertexStyle[mxConstants.STYLE_SPACING_RIGHT] = padding
+
+
 
         // Set color for all edges  (Light mode: dark gray,  Dark mode: medium gray)
 
@@ -125,9 +139,8 @@ class DependencyGraphPanel(
             val cellMap = mutableMapOf<String, Any>()
 
             for (vertex in jGraphTGraph.vertexSet()) {
-                val width = JBUI.scale(20 + vertex.length * 8).toDouble()
-                val height = JBUI.scale(36).toDouble()
-                val cell = graph.insertVertex(parent, null, vertex, 0.0, 0.0, width, height)
+                val cell = graph.insertVertex(parent, null, vertex, 0.0, 0.0, 0.0, 0.0)
+                graph.updateCellSize(cell)
                 cellMap[vertex] = cell
             }
 
