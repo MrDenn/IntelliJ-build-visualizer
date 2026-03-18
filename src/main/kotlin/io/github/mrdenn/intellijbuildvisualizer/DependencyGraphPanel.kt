@@ -1,5 +1,10 @@
 package io.github.mrdenn.intellijbuildvisualizer
 
+import com.intellij.icons.AllIcons
+import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.AnAction
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.ui.Gray
 import com.intellij.ui.JBColor
 import com.intellij.util.ui.JBUI
@@ -18,6 +23,7 @@ import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.awt.event.MouseWheelEvent
 import java.awt.event.MouseWheelListener
+import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
@@ -73,7 +79,33 @@ class DependencyGraphPanel(
             addMouseMotionListener(interactionHandler)
         }
 
+        add(buildToolbar(), BorderLayout.EAST)
         add(graphComponent, BorderLayout.CENTER)
+    }
+
+    /**
+     * Builds a slim vertical toolbar with zoom controls, styled according to default IntelliJ UI.
+     *
+     * The panel includes a 'Zoom In', 'Zoom Out' and 'Reset Zoom' buttons
+     * that use built-in sleek AllIcons.Graph icons.
+     */
+    private fun buildToolbar(): JComponent {
+        val group = DefaultActionGroup().apply {
+            add(object : AnAction("Zoom In", "Zoom in", AllIcons.Graph.ZoomIn) {
+                override fun actionPerformed(e: AnActionEvent) = graphComponent.zoomIn()
+            })
+            add(object : AnAction("Zoom Out", "Zoom out", AllIcons.Graph.ZoomOut) {
+                override fun actionPerformed(e: AnActionEvent) = graphComponent.zoomOut()
+            })
+            add(object : AnAction("Reset Zoom", "Reset to 100%", AllIcons.Graph.ActualZoom) {
+                override fun actionPerformed(e: AnActionEvent) = graphComponent.zoomActual()
+            })
+        }
+
+        return ActionManager.getInstance()
+            .createActionToolbar("DependencyGraphToolbar", group, false)
+            .apply { targetComponent = graphComponent }
+            .component
     }
 
     /**
