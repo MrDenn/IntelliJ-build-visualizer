@@ -31,13 +31,13 @@ Tasks:
 - [ ] Add a small legend area (label to the side of the graph) stating:
   "Nodes = modules (Gradle main source sets). Edges = 'depends on' (A -> B means A depends on B)."
 3. **Basic interaction affordances**
-- [ ] **Fit to screen on open:** call `graphComponent.fit()` after `applyLayout()` completes so the graph fills the 
+- [x] **Fit to screen on open:** call `graphComponent.fit()` after `applyLayout()` completes so the graph fills the 
   visible area without manual zooming on first render.
 - [x] **Mouse wheel zoom:** `mxGraphComponent` exposes `zoomIn()` and `zoomOut()` - wire these to a 
   `MouseWheelListener` (disable the default scroll-to-pan behaviour first with `setWheelScrollingEnabled(false)`).
 - [x] **Panning:** `isPanning = true` is already set, but currently doesn't work.
   - [x] Configure `mxPanningHandler` to require a modifier key (Ctrl) or middle-mouse button could resolve this.
-- [ ] Optionally expose zoom in / zoom out / fit actions via a small toolbar in the `SimpleToolWindowPanel`.
+- [x] Optionally expose zoom in / zoom out / fit actions via a small toolbar in the `SimpleToolWindowPanel`.
 4. **Graph refresh on project reload**
 - [ ] Subscribe to `ModuleRootListener` or the external system sync event so the graph is rebuilt whenever Gradle 
   modules are added, removed, or reloaded.

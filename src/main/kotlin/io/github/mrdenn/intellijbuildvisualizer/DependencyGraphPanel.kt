@@ -46,12 +46,25 @@ class DependencyGraphPanel(
 
     private val graph = mxGraph()
     private val graphComponent: mxGraphComponent
+    private var initialCenterDone = false
 
     init {
         configureStyles()
         graph.isAutoSizeCells = true
         populateGraph(jGraphTGraph)
         applyLayout()
+
+        // Add uniform margin around the graph content by shifting all cells after layout
+
+        // Using moveCells rather than graph.view.translate avoids the translation being silently reset to (0,0)
+        // by internal logic of graphComponent.zoom(). Otherwise, zooming resets the margins.
+        val margin = JBUI.scale(100)
+        graph.moveCells(
+            graph.getChildCells(graph.defaultParent, true, true),
+            margin.toDouble(), margin.toDouble()
+        )
+        // Reserves space equal to margin on the right and bottom
+        graph.border = margin
 
         graphComponent = mxGraphComponent(graph).apply {
             isConnectable = false
@@ -290,6 +303,44 @@ class DependencyGraphPanel(
         layout.interRankCellSpacing = JBUI.scale(50).toDouble()
         layout.intraCellSpacing = JBUI.scale(40).toDouble()
         layout.execute(graph.defaultParent)
+    }
+
+    /**
+     * Scrolls the viewport so the graph content is centered on first display.
+     *
+     * The [addNotify] Swing hook is called when the panel is added to a
+     * displayable container. [SwingUtilities.invokeLater] waits until after the
+     * first layout pass, ensuring the window size is already known.
+     * The flag prevents re-centering if the panel is ever re-parented.
+     */
+    override fun addNotify() {
+        super.addNotify()
+        if (!initialCenterDone) {
+            initialCenterDone = true
+            SwingUtilities.invokeLater(::centerGraph)
+        }
+    }
+
+    /**
+     * Scrolls the viewport so the graph content is centered in the visible area.
+     *
+     * Works by computing the midpoint of the slack between the content's preferred
+     * size and the tool window's visible area, then setting that as the view
+     * position. If the content is larger than the viewport in either dimension the
+     * position is clamped to 0, so the graph never scrolls out of bounds.
+     *
+     * Note: this only produces perfect centering when the graph is larger than the
+     * viewport. JScrollPane clamps the view position to non-negative values, so
+     * centering smaller content requires a more involved approach, which is unnecessary.
+     */
+    private fun centerGraph() {
+        val viewport = graphComponent.viewport
+        val contentSize = graphComponent.graphControl.preferredSize
+        val viewSize = viewport.extentSize
+        viewport.viewPosition = Point(
+            ((contentSize.width - viewSize.width) / 2).coerceAtLeast(0),
+            ((contentSize.height - viewSize.height) / 2).coerceAtLeast(0)
+        )
     }
 
     companion object {
