@@ -12,8 +12,16 @@ import org.jgrapht.Graph
 import org.jgrapht.graph.DefaultEdge
 import java.awt.BorderLayout
 import java.awt.Color
+import java.awt.Cursor
+import java.awt.Point
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
+import java.awt.event.MouseWheelEvent
+import java.awt.event.MouseWheelListener
 import javax.swing.JPanel
 import javax.swing.SwingConstants
+import javax.swing.SwingUtilities
+import kotlin.math.pow
 
 /**
  * Swing panel that renders a JGraphT directed graph as a visual dependency graph
@@ -41,7 +49,7 @@ class DependencyGraphPanel(
 
         graphComponent = mxGraphComponent(graph).apply {
             isConnectable = false
-            isPanning = true
+            isPanning = false
             setDragEnabled(false)
             setToolTips(true)
 
@@ -50,16 +58,96 @@ class DependencyGraphPanel(
             background = UIUtil.getPanelBackground()
         }
 
-        // Turn most user interactions with the graph off
+        // Turn most default user interactions with the graph off
         graph.isCellsEditable = false
         graph.isCellsResizable = false
         graph.isCellsDeletable = false
+        graph.isCellsMovable = false
+        graph.isCellsDisconnectable = false
 
-        // Allow user to move cells (for now)
-        // Edges also remain moveable to accommodate for this
-        graph.isCellsMovable = true
+        // Register a handler for graph interactions
+        val interactionHandler = GraphInteractionHandler()
+        graphComponent.graphControl.apply {
+            addMouseWheelListener(interactionHandler)
+            addMouseListener(interactionHandler)
+            addMouseMotionListener(interactionHandler)
+        }
 
         add(graphComponent, BorderLayout.CENTER)
+    }
+
+    /**
+     * Handles zoom (Ctrl+scroll, centered on cursor) and pan (middle-mouse drag).
+     *
+     * Plain scroll events are ignored, otherwise touchpad two-finger swipe wouldn't work.
+     * Touchpad pinch-to-zoom should send Ctrl+scroll on most platforms and
+     * therefore trigger zoom here correctly.
+     */
+    private inner class GraphInteractionHandler : MouseAdapter(), MouseWheelListener {
+        private var isPanning = false
+        private var panStart = Point(0, 0)
+        private var panViewStart = Point(0, 0)
+
+        // Overridden for the zoom to work properly
+        override fun mouseWheelMoved(e: MouseWheelEvent) {
+            if (e.isControlDown) {
+                // Formula for the zoom is 1.1^(-rotation)
+                // Should be around 10% per scroll notch and smooth for touchpads
+                zoomAtPoint(e.point, 1.1.pow(-e.preciseWheelRotation))
+                e.consume()
+            }
+            // Non-Ctrl scroll is not consumed
+        }
+
+        // Overridden for the zoom to work properly
+        override fun mousePressed(e: MouseEvent) {
+            if (SwingUtilities.isMiddleMouseButton(e)) {
+                isPanning = true
+                panStart = e.locationOnScreen
+                panViewStart = graphComponent.viewport.viewPosition
+                graphComponent.cursor = Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR)
+            }
+        }
+
+        // Manual implementation of zooming
+        private fun zoomAtPoint(mousePoint: Point, factor: Double) {
+            val view = graph.view
+            val oldScale = view.scale
+            val viewport = graphComponent.viewport
+            val vp = viewport.viewPosition
+            // Graph-space point under cursor - must stay fixed after zoom
+            val graphX = (vp.x + mousePoint.x) / oldScale
+            val graphY = (vp.y + mousePoint.y) / oldScale
+            // zoom() applies scale constraints, fires events, and adjusts scroll to
+            // viewport center; we override that scroll position immediately after
+            graphComponent.zoom(factor)
+            val newScale = view.scale
+            viewport.viewPosition = Point(
+                (graphX * newScale - mousePoint.x).toInt().coerceAtLeast(0),
+                (graphY * newScale - mousePoint.y).toInt().coerceAtLeast(0)
+            )
+        }
+
+        // Overridden for panning to work properly
+        override fun mouseReleased(e: MouseEvent) {
+            if (isPanning && SwingUtilities.isMiddleMouseButton(e)) {
+                isPanning = false
+                graphComponent.cursor = Cursor.getDefaultCursor()
+            }
+        }
+
+        // Overridden for panning to work properly
+        override fun mouseDragged(e: MouseEvent) {
+            if (isPanning) {
+                val screen = e.locationOnScreen
+                val dx = panStart.x - screen.x
+                val dy = panStart.y - screen.y
+                graphComponent.viewport.viewPosition = Point(
+                    (panViewStart.x + dx).coerceAtLeast(0),
+                    (panViewStart.y + dy).coerceAtLeast(0)
+                )
+            }
+        }
     }
 
     /**
