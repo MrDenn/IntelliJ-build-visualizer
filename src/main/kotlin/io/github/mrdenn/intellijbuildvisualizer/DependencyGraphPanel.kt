@@ -54,17 +54,7 @@ class DependencyGraphPanel(
         populateGraph(jGraphTGraph)
         applyLayout()
 
-        // Add uniform margin around the graph content by shifting all cells after layout
-
-        // Using moveCells rather than graph.view.translate avoids the translation being silently reset to (0,0)
-        // by internal logic of graphComponent.zoom(). Otherwise, zooming resets the margins.
-        val margin = JBUI.scale(100)
-        graph.moveCells(
-            graph.getChildCells(graph.defaultParent, true, true),
-            margin.toDouble(), margin.toDouble()
-        )
-        // Reserves space equal to margin on the right and bottom
-        graph.border = margin
+        applyMargins()
 
         graphComponent = mxGraphComponent(graph).apply {
             isConnectable = false
@@ -193,6 +183,51 @@ class DependencyGraphPanel(
                 )
             }
         }
+    }
+
+    /**
+     * Replaces the current graph content with a new JGraphT graph.
+     *
+     * Clears all existing cells, repopulates from [newGraph], re-applies the
+     * hierarchical layout and margins, then re-centers the viewport.
+     * The [mxGraph] instance, styles, toolbar, and interaction handlers are preserved.
+     */
+    fun rebuild(newGraph: Graph<String, DefaultEdge>) {
+        graph.model.beginUpdate()
+        try {
+            // Manual, child-by-child deletion is used, because removeCells did not work
+            val parent = graph.defaultParent
+            while (graph.model.getChildCount(parent) > 0) {
+                graph.model.remove(graph.model.getChildAt(parent, 0))
+            }
+        } finally {
+            graph.model.endUpdate()
+        }
+        populateGraph(newGraph)
+        applyLayout()
+        applyMargins()
+        graphComponent.refresh()
+        SwingUtilities.invokeLater(::centerGraph)
+    }
+
+    /**
+     * Adds uniform margin around the graph content by shifting all cells after layout.
+     *
+     * Uses [mxGraph.moveCells] rather than [mxGraph.getView] translate to avoid
+     * the translation being silently reset to (0,0) by [mxGraphComponent.zoom].
+     */
+    private fun applyMargins() {
+        // Add uniform margin around the graph content by shifting all cells after layout
+
+        // Using moveCells rather than graph.view.translate avoids the translation being silently reset to (0,0)
+        // by internal logic of graphComponent.zoom(). Otherwise, zooming resets the margins.
+        val margin = JBUI.scale(100)
+        graph.moveCells(
+            graph.getChildCells(graph.defaultParent, true, true),
+            margin.toDouble(), margin.toDouble()
+        )
+        // Reserves space equal to margin on the right and bottom
+        graph.border = margin
     }
 
     /**

@@ -39,9 +39,10 @@ Tasks:
   - [x] Configure `mxPanningHandler` to require a modifier key (Ctrl) or middle-mouse button could resolve this.
 - [x] Optionally expose zoom in / zoom out / fit actions via a small toolbar in the `SimpleToolWindowPanel`.
 4. **Graph refresh on project reload**
-- [ ] Subscribe to `ModuleRootListener` or the external system sync event so the graph is rebuilt whenever Gradle 
-  modules are added, removed, or reloaded.
-- [ ] Without this, the graph will be stale after any structural change to the project.
+- [x] Subscribe to `ModuleRootListener.TOPIC` on the project message bus; filter out file-type-only events.
+  - [x] Debounce rapid-fire events (e.g. during Gradle sync) using `Alarm` with a 500ms delay on SWING_THREAD.
+- [x] `DependencyGraphPanel.rebuild()` clears the mxGraph model and repopulates from a fresh JGraphT graph,
+  preserving styles, zoom level, toolbar, and interaction handlers.
 
 Deliverable: A static, usable module dependency graph that behaves sensibly in any project and is self-explanatory.
 
@@ -66,7 +67,7 @@ Tasks:
 3. **Apply coloring post-build**
 - [ ] When the build finishes, update the JGraphX styles:
     - Green for "compiled this build"
-    - Grey for "skipped / up-to-date"
+    - Gray for "skipped / up-to-date"
     - Red for "compile failed"
 - [ ] Trigger a repaint of the graph component.
 4. **UI feedback (maybe?)**
@@ -116,3 +117,13 @@ Tasks:
   potentially affects 9 dependent modules.")
 
 Deliverable: The graph reflects the scope of the pending build based on the current changelist, updating as files are modified.
+
+## Phase 5 - ABI-aware refinement
+
+Goal: Refine the Phase 4 preview so that ABI-compatible changes do not mark all transitive dependents as affected.
+
+Deliverable: An ABI-compatible change in a leaf module highlights only that module; a public API change in a core module propagates a cascade and triggers a warning.
+
+## Phase 6 - UX & documentation polish
+
+Goal: Tie the project together into a final, polished prototype.
