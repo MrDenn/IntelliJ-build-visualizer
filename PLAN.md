@@ -49,47 +49,62 @@ Deliverable: A static, usable module dependency graph that behaves sensibly in a
 ## Phase 2 - Post-build status overlay (after build completes)
 
 Goal: After a Gradle build finishes, color nodes based on what happened to each module in that build.
-This will link the graph with the actual build process and establish the visualization infrastructure
-that will later be used for real-time updates.
+This will link the graph with the actual build process and establish the state management infrastructure
+that Phase 3 will reuse for real-time updates.
 
 Tasks:
 
-1. **Listen to Gradle/External System build events**
-- [ ] Use `BuildProgressListener` to gather build and compilation progress information in real-time using 
-  `StartEvent` and `FinishEvent` events (the latter is more important for post-build feedback).
-- [ ] Tags within each event can then be used to determine module compilation outcome.
+1. **Listen to Gradle build events**
+- [ ] Subscribe to `BuildProgressListener.TOPIC` on the project message bus before each build.
+- [ ] Collect `FinishEvent` events for compile tasks (`compileKotlin`, `compileJava`).
+- [ ] Classify each module's outcome from the typed `FinishEvent.result`:
+  - `SuccessResult` for successful compilation
+  - `FailureResult` for failed compilation
+  - `SkippedResult` and `isUpToDate` for when compilation was skipped
 2. **Map tasks to graph vertices**
-- [ ] Map a task path like `:message-dashboard:compileKotlin` to the corresponding graph vertex
-  `my-root-project.message-dashboard`. This can be done somewhat deterministically by:
-  - Removing `compileKotlin` or `compileJava` from the end,
-  - Replacing all semicolons with full stops (dots)
-  - Appending the project name to the beginning
-3. **Apply coloring post-build**
-- [ ] When the build finishes, update the JGraphX styles:
-    - Green for "compiled this build"
-    - Gray for "skipped / up-to-date"
-    - Red for "compile failed"
-- [ ] Trigger a repaint of the graph component.
-4. **UI feedback (maybe?)**
-- [ ] Add a small status label above the graph summarizing the outcome: e.g. "Last build: 42 modules compiled, 10 
-  skipped, 1 failed."
+- [ ] Build a lookup `Map<String, ModuleNode>` keyed by `ModuleNode.gradleProjectPath`
+  (the latter is already populated via `ExternalSystemApiUtil.getExternalProjectId()` during graph construction).
+- [ ] To resolve a task event: strip the task name from the path
+  (e.g. `:core-utils:compileKotlin` -> `:core-utils`) and look up the corresponding `ModuleNode`.
+- [ ] No string heuristics needed - the mapping should be deterministic.
+3. **Accumulate state, flush on build completion**
+- [ ] Define a `BuildStatus` enum: `COMPILED`, `UP_TO_DATE`, `FAILED`.
+- [ ] During the build, accumulate status into a `Map<ModuleNode, BuildStatus>`.
+- [ ] On `FinishBuildEvent`, flush accumulated state information into the UI:
+  use `DependencyGraphPanel.cellMap` to look up the mxGraph cell for each module,
+  apply the appropriate fill color (green / gray / red), then repaint.
+- [ ] This accumulate-then-flush pattern is deliberately designed so that Phase 3 can
+  reuse the same state map with periodic flushing instead of end-of-build-only flushing.
+4. **UI feedback** (Optional)
+- [ ] Add a small status label above the graph summarizing the outcome:
+  e.g. "Last build: 42 modules compiled, 10 skipped, 1 failed."
 
 Deliverable: The graph is recolored after each build to reflect that build's per-module outcome.
 
 ## Phase 3 - Live build status (while build is running)
 
 Goal: Make the graph reflect the live state of the build, updating in real time as compilation progresses.
+This phase is additive on top of Phase 2 - same listener, same state map, same coloring logic.
+The only change is *when* accumulated state is flushed to the UI.
 
 Tasks:
 
-1. **Handle start and finish events**
-- [ ] In the build listener, on `StartEvent`, transition the node to a "compiling" state (e.g., yellow).
-- [ ] On `FinishEvent`, transition to compiled / failed / skipped as established in Phase 2.
-2. **Threading**
-- [ ] All UI updates (`graph` style changes, repaint) must happen on IntelliJ's EDT via
-  `ApplicationManager.getApplication().invokeLater {...}`.
-3. **Batch processing for updates (if needed?)**
-- [ ] For large projects with many concurrent tasks, batch updates every 100-200ms so to avoid excessive repaints.
+1. **Handle start events**
+- [ ] Extend the existing `BuildProgressListener` to also handle `StartEvent` for compile tasks,
+  transitioning the module to a "compiling" state (e.g. yellow).
+- [ ] Add `COMPILING` to the `BuildStatus` enum.
+- [ ] `FinishEvent` handling remains unchanged from Phase 2.
+2. **Periodic batch flushing**
+- [ ] Add an `Alarm(Alarm.ThreadToUse.SWING_THREAD)` that fires every 100–200ms while a build is active.
+- [ ] On each tick, flush all accumulated state changes since the last tick to the UI
+  (same cell lookup + restyle + repaint logic as Phase 2's end-of-build flush).
+- [ ] Cancel the alarm when `FinishBuildEvent` arrives (after a final flush).
+- [ ] This reuses the same `Map<ModuleNode, BuildStatus>` from Phase 2 - the only difference
+  is that changes are now also flushed periodically during the build, not only at the end.
+3. **Threading**
+- [ ] All UI updates (mxGraph style changes, repaint) run on the event dispatch thread,
+  since `Alarm.ThreadToUse.SWING_THREAD` is used for periodic flushes
+  and `ApplicationManager.getApplication().invokeLater` for the final flush.
 
 Deliverable: Nodes transition through colors as their compilation tasks start and finish during a build.
 
