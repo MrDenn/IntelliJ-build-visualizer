@@ -43,6 +43,10 @@ This visualization will both be a passive and an active indicator of build execu
 - During the build, the colors of each node in the graph will be updated in real time to represent modules being 
   recompiled, skipped, and completed.
 
+![Build Visualizer graph](assets/graph_static_(exposed).png)
+Static dependency graph rendered for the JetBrains/Exposed repository. For now the graph is scaleable and
+interactive, as well as updated with any Gradle project changes (like module addition/removal, dependency changes, etc.)
+
 ## Planned Features [MoSCoW]
 
 ### Must
