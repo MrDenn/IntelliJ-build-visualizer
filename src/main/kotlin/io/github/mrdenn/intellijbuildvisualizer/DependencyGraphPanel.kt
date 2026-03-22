@@ -41,12 +41,13 @@ import kotlin.math.pow
  *   names and edges represent "depends on" relationships
  */
 class DependencyGraphPanel(
-    jGraphTGraph: Graph<String, DefaultEdge>
+    jGraphTGraph: Graph<ModuleNode, DefaultEdge>
 ) : JPanel(BorderLayout()) {
 
     private val graph = mxGraph()
     private val graphComponent: mxGraphComponent
     private var initialCenterDone = false
+    private var cellMap = mapOf<ModuleNode, Any>()
 
     init {
         configureStyles()
@@ -192,7 +193,7 @@ class DependencyGraphPanel(
      * hierarchical layout and margins, then re-centers the viewport.
      * The [mxGraph] instance, styles, toolbar, and interaction handlers are preserved.
      */
-    fun rebuild(newGraph: Graph<String, DefaultEdge>) {
+    fun rebuild(newGraph: Graph<ModuleNode, DefaultEdge>) {
         graph.model.beginUpdate()
         try {
             // Manual, child-by-child deletion is used, because removeCells did not work
@@ -300,27 +301,32 @@ class DependencyGraphPanel(
      * Each JGraphT vertex becomes an mxGraph vertex cell sized proportionally
      * to its label length, and each JGraphT edge becomes a directed mxGraph edge.
      */
-    private fun populateGraph(jGraphTGraph: Graph<String, DefaultEdge>) {
+    private fun populateGraph(jGraphTGraph: Graph<ModuleNode, DefaultEdge>) {
         val parent = graph.defaultParent
         graph.model.beginUpdate()
         try {
-            val cellMap = mutableMapOf<String, Any>()
+            val cells = mutableMapOf<ModuleNode, Any>()
 
+            // Generate and insert JGraphX vertices into the graph for each ModuleNode
+            // Individual ModuleNode -> JGraphX cell relations are accumulated in 'cells' to later be stored in cellMap
             for (vertex in jGraphTGraph.vertexSet()) {
-                val cell = graph.insertVertex(parent, null, vertex, 0.0, 0.0, 0.0, 0.0)
+                val cell = graph.insertVertex(parent, null, vertex.displayName, 0.0, 0.0, 0.0, 0.0)
                 graph.updateCellSize(cell)
-                cellMap[vertex] = cell
+                cells[vertex] = cell
             }
 
+            // Edges are pulled from the JGraphT object and inserted into the JGraphX graph
             for (edge in jGraphTGraph.edgeSet()) {
                 val source = jGraphTGraph.getEdgeSource(edge)
                 val target = jGraphTGraph.getEdgeTarget(edge)
-                val sourceCell = cellMap[source]
-                val targetCell = cellMap[target]
+                val sourceCell = cells[source]
+                val targetCell = cells[target]
                 if (sourceCell != null && targetCell != null) {
                     graph.insertEdge(parent, null, "", sourceCell, targetCell)
                 }
             }
+
+            cellMap = cells
         } finally {
             graph.model.endUpdate()
         }
