@@ -1,38 +1,56 @@
-# Gradle Build Visualizer
+[![GitHub](https://img.shields.io/badge/Github-MrDenn-blue?logo=github)](https://github.com/MrDenn)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Denis%20Shaikhatarov-1DA1F2)](https://www.linkedin.com/in/denis-shaikhatarov-8b91002b5/)
+[![Email](https://img.shields.io/badge/Email-den.shaikhatarov@gmail.com-orange)](https://mail.google.com/mail/?view=cm&fs=1&to=den.shaikhatarov@gmail.com)
 
-[![LinkedIn Follow](https://img.shields.io/badge/LinkedIn-%40Denis%20Shaikhatarov-1DA1F2?logo=twitter)](https://www.linkedin.com/in/denis-shaikhatarov-8b91002b5/)
+<a>
+    <picture>
+        <source srcset="assets/title.svg"  width="600" media="(prefers-color-scheme: dark)">
+        <img src="assets/title.svg" alt="Gradle Build Visualizer" width="600">
+    </picture>
+</a>
 
-## The problem
-In large codebases with multiple modules, a single source change can trigger recompilation of a large number of these
-modules. This usually happens because build systems (like Gradle) track inter-module dependencies and propagate 
-recompilation whenever a change is ABI-incompatible - that is, when it modifies the public interface of a module 
-that other modules depend on. The cascade can be wide: a change to a shared core module may invalidate dozens of downstream modules, even if the 
-actual diff is small.
+An IntelliJ plugin that shows Gradle's incremental compilation decisions on a module dependency graph - live,
+during the build.
+<br>
 
-This behavior is entirely correct and by design, but the details behind the decisions that the build system makes 
-are not at all effectively communicated to the developer making a change. The build system logs which tasks ran, 
-which were recompiled, and which were skipped, bud does not explain causality - what dependency edges caused a given 
-module to be pulled into the build.
+![Build Visualizer graph](assets/graph_static_(exposed).png)
 
-This plugin aims to solve this issue through two separate visualization elements:
-- First, a clear indication of whether the change list at any time is ABI-compatible or not. If it is not, various 
-  warnings could be given to the user in order to make dependency cascades during compilation as predictable and 
-  transparent as possible.
-- Second, a directed graph-based visualization of the dependency tree. In particular, the graph of dependencies 
-  between modules, which will need to be recompiled if a build is launched with the current change list.
+Static dependency graph rendered for the <code>Allali84/gradle-multiple-project</code> repository.
 
-## Approach
+# The problem
+In large multi-module codebases, build slowdowns are a common issue, and they are hidden behind text logs that are 
+hard to read and understand. But the deeper issue is that build logs only show *what* ran, but now *why* a given 
+module was pulled into the build and recompilation at all. Gradle tracks dependencies and makes decisions based 
+on the ABI-compatibility of changes, but this information is not effectively communicated to the user.
+
+This plugin aims to address both the lack of visibility and the lack of causality in build logs through two main 
+features:
+- **Visibility** – Through clear indication of whether the change list at any time is ABI-compatible or not. If 
+  it is not, various warnings could be given to the user in order to make dependency cascades during compilation as 
+  predictable and transparent as possible.
+- **Causality** – Through a directed graph-based visualization of the dependency tree. This visualization represents 
+  project modules as vertices and dependencies as directed edges, and it will be updated in real time during the 
+  build to reflect the current state of the build and the decisions made by Gradle.
+
+# Implementation status
+
+- [x] Basic graph visualization of modules and dependencies
+- [x] Graph refresh on Gradle project reload / sync
+- [ ] Graph updates during the build to reflect module states (compiling / done / failed)
+- [ ] PSI-based ABI heuristic distinguishing public signature changes from internal-only edits
+- [ ] ABI-incompatibility warning banner when a changelist contains public API changes
+- [ ] "Are you sure?" dialogue window when launching a build with an ABI-incompatible changelist
+- [ ] Pre-build impact preview based on the current changelist
+
+More details are provided in dedicated [plan document](PLAN.md).
+
+
+
+
+# Design approach
 
 The plugin will be contained within the **Dependency Graph** tool window in the bottom left of IntelliJ. Within this 
 UI, there will be two main elements to properly inform the user of the scope of the upcoming build.
-
-### ABI-compatibility warning
-
-Include two types of warnings in order to inform the user of possibly long compilation times:
-- Passive warning at the top of the **Dependency Graph** tab, which will light up in the form of a "warning" 
-  banner in case the current changelist is not ABI-compatible;
-- "Are you sure?" dialogue window that will pop up when the user launches a build with a changelist that is 
-  ABI-incompatible.
 
 ### Module dependency graph
 
@@ -43,11 +61,31 @@ This visualization will both be a passive and an active indicator of build execu
 - During the build, the colors of each node in the graph will be updated in real time to represent modules being 
   recompiled, skipped, and completed.
 
-![Build Visualizer graph](assets/graph_static_(exposed).png)
-Static dependency graph rendered for the JetBrains/Exposed repository. For now the graph is scaleable and
-interactive, as well as updated with any Gradle project changes (like module addition/removal, dependency changes, etc.)
+### ABI-compatibility warning
 
-## Planned Features [MoSCoW]
+Include two types of warnings in order to inform the user of possibly long compilation times:
+- Passive warning at the top of the **Dependency Graph** tab, which will light up in the form of a "warning"
+  banner in case the current changelist is not ABI-compatible;
+- "Are you sure?" dialogue window that will pop up when the user launches a build with a changelist that is
+  ABI-incompatible.
+
+# Technical decisions
+
+### Dependency data gathering
+- ModuleManager is used to query all available modules
+- Only ".main" modules are kept, as they should represent the module code itself
+- ModuleRootManager is used to query dependencies for each remaining module
+- Modules and dependencies do not update unless plugin is restarted
+- JGraphT is used to store the data instead of a custom data type, since it works well with JGraphX and is
+  sufficient for a prototype
+### Graph visualization
+- JGraphX is used to display the JGraphT object
+  - Even though it's not as customizeable as a custom rendering engine, it provides enough flexibility to make the
+    proof of concept look good
+- Nodes represent modules, directed edges represent dependencies
+- JBUI is used for (somewhat) dynamic coloring that adapts to the selected theme (Light/Dark)
+
+# Planned Features [MoSCoW]
 
 ### Must
 - **Dependency Graph** tool window showing inter-module dependencies as a directed graph
@@ -71,19 +109,3 @@ interactive, as well as updated with any Gradle project changes (like module add
   - This would likely require a complete rewrite and is too complex for a proof of concept
 - Exact ABI equivalence
   - Gradle uses a heuristic system, and replicating its incremental compilation logic is out of scope for a prototype
-
-## Design Decisions [Current implementation]
-
-### Dependency data gathering
-- ModuleManager is used to query all available modules
-- Only ".main" modules are kept, as they should represent the module code itself
-- ModuleRootManager is used to query dependencies for each remaining module
-- Modules and dependencies do not update unless plugin is restarted
-- JGraphT is used to store the data instead of a custom data type, since it works well with JGraphX and is 
-  sufficient for a prototype
-### Graph visualization
-- JGraphX is used to display the JGraphT object
-  - Even though it's not as customizeable as a custom rendering engine, it provides enough flexibility to make the 
-    proof of concept look good
-- Nodes represent modules, directed edges represent dependencies
-- JBUI is used for (somewhat) dynamic coloring that adapts to the selected theme (Light/Dark)
