@@ -36,10 +36,11 @@ internal const val MAIN_EXTERNAL_ID_SUFFIX = ":main"
  */
 internal fun Module.toModuleNode(): ModuleNode? {
     if (!name.endsWith(MAIN_MODULE_SUFFIX)) return null
+    val gradlePath = ExternalSystemApiUtil.getExternalProjectId(this)
+        ?.removeSuffix(MAIN_EXTERNAL_ID_SUFFIX)
     return ModuleNode(
-        displayName = name.removeSuffix(MAIN_MODULE_SUFFIX),
-        gradleProjectPath = ExternalSystemApiUtil.getExternalProjectId(this)
-            ?.removeSuffix(MAIN_EXTERNAL_ID_SUFFIX)
+        displayName = gradlePath?.removePrefix(":") ?: name.removeSuffix(MAIN_MODULE_SUFFIX),
+        gradleProjectPath = gradlePath
     )
 }
 
@@ -52,9 +53,8 @@ internal fun Module.toModuleNode(): ModuleNode? {
  */
 fun buildDependencyGraph(project: Project): Graph<ModuleNode, DefaultEdge> {
     val graph = DefaultDirectedGraph<ModuleNode, DefaultEdge>(DefaultEdge::class.java)
-    val allModules = ModuleManager.getInstance(project).modules
 
-    val mainModules = allModules
+    val mainModules = ModuleManager.getInstance(project).modules
         .mapNotNull { module -> module.toModuleNode()?.let { node -> module to node } }
         .toMap()
 

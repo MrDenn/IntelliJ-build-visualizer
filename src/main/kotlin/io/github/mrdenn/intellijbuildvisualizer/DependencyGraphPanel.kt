@@ -279,7 +279,8 @@ class DependencyGraphPanel(
             val cells = mutableMapOf<ModuleNode, Any>()
 
             for (vertex in jGraphTGraph.vertexSet()) {
-                val cell = graph.insertVertex(parent, null, vertex.displayName, 0.0, 0.0, 0.0, 0.0)
+                val label = vertex.displayName
+                val cell = graph.insertVertex(parent, null, label, 0.0, 0.0, 0.0, 0.0)
                 graph.updateCellSize(cell)
                 cells[vertex] = cell
             }
@@ -300,8 +301,8 @@ class DependencyGraphPanel(
 
     private fun applyLayout() {
         val layout = mxHierarchicalLayout(graph, SwingConstants.NORTH)
-        layout.interRankCellSpacing = JBUI.scale(50).toDouble()
-        layout.intraCellSpacing = JBUI.scale(40).toDouble()
+        layout.interRankCellSpacing = JBUI.scale(60).toDouble()
+        layout.intraCellSpacing = JBUI.scale(20).toDouble()
         layout.execute(graph.defaultParent)
     }
 
