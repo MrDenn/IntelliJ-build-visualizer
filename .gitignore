@@ -16,6 +16,7 @@ build/
 out/
 !**/src/main/**/out/
 !**/src/test/**/out/
+assets/github.css
 
 ### Eclipse ###
 .apt_generated
