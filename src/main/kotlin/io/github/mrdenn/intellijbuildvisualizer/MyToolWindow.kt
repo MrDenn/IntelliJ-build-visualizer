@@ -47,6 +47,11 @@ class MyToolWindowFactory : ToolWindowFactory {
  * [ModuleRootListener] so the graph is automatically rebuilt when modules are added,
  * removed, or their dependencies change (e.g. after a Gradle sync).
  *
+ * Build status coloring is driven by [BuildStatusService], which is a project-level
+ * service that collects Gradle build events independently of this tool window's lifecycle.
+ * On open, the tool window registers as a UI listener and applies any statuses that
+ * accumulated while the window was closed (catch-up).
+ *
  * @param project the currently open IntelliJ [Project], used to query module structure
  * @param parentDisposable lifecycle anchor - typically [ToolWindow.getDisposable];
  *   when disposed, the message bus subscription and debounce alarm are cleaned up
@@ -59,6 +64,11 @@ class MyToolWindow(
     private val graphPanel: DependencyGraphPanel
     private val content: SimpleToolWindowPanel
     private val alarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
+    private val buildStatusService = project.getService(BuildStatusService::class.java)
+
+    private val uiListener = BuildStatusService.UiListener { statuses ->
+        graphPanel.applyBuildStatuses(statuses)
+    }
 
     init {
         Disposer.register(parentDisposable, this)
@@ -68,6 +78,15 @@ class MyToolWindow(
         content = SimpleToolWindowPanel(true).apply {
             add(graphPanel, BorderLayout.CENTER)
         }
+
+        // Subscribe to build status updates from the project-level service.
+        // The service is started at project open, so events are never missed
+        // regardless of when this tool window is first opened.
+        buildStatusService.addUiListener(uiListener)
+
+        // Catch up: apply any statuses that accumulated before this window opened.
+        // getStatuses() is non-destructive, so statuses persist for future rebuilds.
+        graphPanel.applyBuildStatuses(buildStatusService.getStatuses())
 
         // Register a listener for Gradle updates
         project.messageBus.connect(this).subscribe(
@@ -101,6 +120,9 @@ class MyToolWindow(
      */
     private fun rebuild() {
         graphPanel.rebuild(buildDependencyGraph(project))
+        // Reapply last-known statuses after every rebuild: new cells start with default
+        // styles, so without this the graph resets to gray whenever a Gradle sync fires.
+        graphPanel.applyBuildStatuses(buildStatusService.getStatuses())
     }
 
     /**
@@ -113,13 +135,14 @@ class MyToolWindow(
     fun getContent(): SimpleToolWindowPanel = content
 
     /**
-     * No-op: [MyToolWindow] owns no resources directly.
+     * Unregisters the UI listener from [BuildStatusService] on tool window close.
      *
-     * Cleanup is handled automatically via the [Disposer] tree - the [alarm] and
-     * message connection are both registered as children of `this`, so they are
-     * disposed when IntelliJ disposes the parent, [ToolWindow].
+     * All other cleanup ([alarm], message bus connection) is handled automatically
+     * via the [Disposer] tree since they are registered as children of `this`.
      */
-    override fun dispose() {}
+    override fun dispose() {
+        buildStatusService.removeUiListener(uiListener)
+    }
 
     // Companion object for storing constants related to MyToolWindow.
     // (This could be a local or global variable, but a companion object keeps it neatly scoped within the class)

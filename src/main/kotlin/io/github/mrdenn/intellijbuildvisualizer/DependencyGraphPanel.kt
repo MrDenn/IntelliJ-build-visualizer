@@ -12,6 +12,7 @@ import com.intellij.util.ui.UIUtil
 import com.mxgraph.layout.hierarchical.mxHierarchicalLayout
 import com.mxgraph.swing.mxGraphComponent
 import com.mxgraph.util.mxConstants
+import com.mxgraph.util.mxStyleUtils
 import com.mxgraph.view.mxGraph
 import org.jgrapht.Graph
 import org.jgrapht.graph.DefaultEdge
@@ -37,8 +38,8 @@ import kotlin.math.pow
  * visually with both light and dark IDE themes. Uses a hierarchical layout
  * (top-to-bottom) appropriate for dependency DAGs.
  *
- * @param jGraphTGraph the directed graph to visualize, where vertices are module
- *   names and edges represent "depends on" relationships
+ * @param jGraphTGraph the directed graph to visualize, where vertices are ModuleNode objects
+ *   and edges represent "depends on" relationships
  */
 class DependencyGraphPanel(
     jGraphTGraph: Graph<ModuleNode, DefaultEdge>
@@ -66,6 +67,11 @@ class DependencyGraphPanel(
             viewport.isOpaque = true
             viewport.background = UIUtil.getPanelBackground()
             background = UIUtil.getPanelBackground()
+
+            // Used for GitHub theme screenshots
+//            val screenshotBg = Color(0x0D, 0x11, 0x17)
+//            viewport.background = screenshotBg
+//            background = screenshotBg
         }
 
         // Turn most default user interactions with the graph off
@@ -209,6 +215,32 @@ class DependencyGraphPanel(
         applyMargins()
         graphComponent.refresh()
         SwingUtilities.invokeLater(::centerGraph)
+    }
+
+    /**
+     * Applies build status colors to graph nodes.
+     *
+     * Overrides only [mxConstants.STYLE_FILLCOLOR] on each cell, preserving all
+     * other style properties (rounded corners, font, padding, etc.).
+     * Must be called on the EDT.
+     */
+    fun applyBuildStatuses(statuses: Map<ModuleNode, BuildStatus>) {
+
+        if (statuses.isEmpty()) return
+        graph.model.beginUpdate()
+        try {
+            for ((node, status) in statuses) {
+                val cell = cellMap[node] ?: continue
+                val currentStyle = graph.model.getStyle(cell) ?: ""
+                val newStyle = mxStyleUtils.setStyle(
+                    currentStyle, mxConstants.STYLE_FILLCOLOR, colorToHex(status.color)
+                )
+                graph.model.setStyle(cell, newStyle)
+            }
+        } finally {
+            graph.model.endUpdate()
+        }
+        graphComponent.refresh()
     }
 
     /**
