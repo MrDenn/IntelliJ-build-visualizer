@@ -12,14 +12,8 @@ import com.intellij.openapi.roots.ModuleRootListener
 /**
  * Project-level service that collects per-module build outcomes from Gradle.
  *
- * Registered as a lightweight project service in `plugin.xml`, so it is available
- * as soon as the project opens — independent of whether the tool window has been
- * opened. This ensures build events are never missed due to lazy tool window init.
- *
- * Owns:
- * - A Gradle-project-path-to-[ModuleNode] index, kept fresh via [ModuleRootListener]
- * - A [BuildStatusCollector] registered with [ExternalSystemProgressNotificationManager]
- * - A set of UI listeners notified (on the EDT) whenever a build finishes
+ * Lives for the project lifetime, independent of the tool window, so build
+ * events are captured even before the tool window is first opened.
  */
 @Service(Service.Level.PROJECT)
 class BuildStatusService(private val project: Project) : Disposable {
@@ -33,14 +27,7 @@ class BuildStatusService(private val project: Project) : Disposable {
 
     private val statusLock = Any()
 
-    /**
-     * Persistent map of the last-known build status for each module, accumulated
-     * across all builds since the project was opened. Entries are only replaced,
-     * never removed, so the graph always reflects the most recent outcome per module.
-     *
-     * Written on background threads (under [statusLock]) by [notifyUiListeners];
-     * read on the EDT by [getStatuses] and [MyToolWindow.rebuild].
-     */
+    /** Last-known status per module, accumulated across builds. Guarded by [statusLock]. */
     private val accumulatedStatuses = mutableMapOf<ModuleNode, BuildStatus>()
 
     @Volatile
@@ -52,11 +39,10 @@ class BuildStatusService(private val project: Project) : Disposable {
     )
 
     init {
-        // Register build event listener for the lifetime of this service
         ExternalSystemProgressNotificationManager.getInstance()
             .addNotificationListener(collector, this)
 
-        // Keep path index fresh when modules change (e.g. after Gradle sync)
+        // Rebuild path index on Gradle sync so new/removed modules are picked up
         project.messageBus.connect(this).subscribe(
             ModuleRootListener.TOPIC,
             object : ModuleRootListener {
@@ -69,10 +55,7 @@ class BuildStatusService(private val project: Project) : Disposable {
     }
 
     /**
-     * Returns a snapshot of the last-known build status for every module seen so far.
-     *
-     * Non-destructive: the accumulated map is not cleared. Safe to call at any time,
-     * including on tool window open for catch-up and after every rebuild.
+     * Non-destructive snapshot of the last-known build status for every module.
      */
     fun getStatuses(): Map<ModuleNode, BuildStatus> {
         synchronized(statusLock) { return HashMap(accumulatedStatuses) }
@@ -91,9 +74,7 @@ class BuildStatusService(private val project: Project) : Disposable {
     private fun notifyUiListeners() {
         val newStatuses = collector.drainStatuses()
         if (newStatuses.isEmpty()) return
-        // Merge new results into the persistent map and capture a snapshot for the UI.
-        // putAll replaces per-module across builds; within-build maxOf is already
-        // handled by BuildStatusCollector before the drain.
+        // putAll replaces per-module across builds; within-build maxOf is handled by the collector
         val snapshot: Map<ModuleNode, BuildStatus>
         synchronized(statusLock) {
             accumulatedStatuses.putAll(newStatuses)
@@ -106,10 +87,7 @@ class BuildStatusService(private val project: Project) : Disposable {
     }
 
     /**
-     * Builds a Gradle-project-path -> [ModuleNode] index from the current project modules.
-     *
-     * Uses [ModuleManager] only — no edge traversal via [com.intellij.openapi.roots.ModuleRootManager].
-     * Modules without a Gradle project path are excluded (gradleProjectPath == null).
+     * Builds a Gradle-project-path -> [ModuleNode] index from main source set modules.
      */
     private fun buildPathIndex(): Map<String, ModuleNode> =
         ModuleManager.getInstance(project).modules
@@ -118,9 +96,7 @@ class BuildStatusService(private val project: Project) : Disposable {
             .toMap()
 
     /**
-     * No-op: all resources are tied to this service's [Disposable] lifetime.
-     * The [ExternalSystemProgressNotificationManager] listener and message bus
-     * connection are auto-cleaned when IntelliJ disposes this service.
+     * No-op: all resources are tied to this service's disposable lifetime.
      */
     override fun dispose() {}
 }

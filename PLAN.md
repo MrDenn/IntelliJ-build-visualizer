@@ -55,26 +55,22 @@ that Phase 3 will reuse for real-time updates.
 Tasks:
 
 1. **Listen to Gradle build events**
-- [ ] Subscribe to `BuildProgressListener.TOPIC` on the project message bus before each build.
-- [ ] Collect `FinishEvent` events for compile tasks (`compileKotlin`, `compileJava`).
-- [ ] Classify each module's outcome from the typed `FinishEvent.result`:
+- [x] Register an `ExternalSystemTaskNotificationListener` with
+  `ExternalSystemProgressNotificationManager` for the project lifetime.
+- [x] Collect `FinishEvent` events for compile tasks (`compileKotlin`, `compileJava`).
+- [x] Classify each module's outcome from the typed `FinishEvent.result`:
   - `SuccessResult` for successful compilation
   - `FailureResult` for failed compilation
   - `SkippedResult` and `isUpToDate` for when compilation was skipped
 2. **Map tasks to graph vertices**
-- [ ] Build a lookup `Map<String, ModuleNode>` keyed by `ModuleNode.gradleProjectPath`
-  (the latter is already populated via `ExternalSystemApiUtil.getExternalProjectId()` during graph construction).
-- [ ] To resolve a task event: strip the task name from the path
-  (e.g. `:core-utils:compileKotlin` -> `:core-utils`) and look up the corresponding `ModuleNode`.
-- [ ] No string heuristics needed - the mapping should be deterministic.
+- [x] Build a lookup `Map<String, ModuleNode>` keyed by `ModuleNode.gradleProjectPath`
+- [x] To resolve a task event: strip the task name from the path and look up the corresponding `ModuleNode`.
 3. **Accumulate state, flush on build completion**
-- [ ] Define a `BuildStatus` enum: `COMPILED`, `UP_TO_DATE`, `FAILED`.
-- [ ] During the build, accumulate status into a `Map<ModuleNode, BuildStatus>`.
-- [ ] On `FinishBuildEvent`, flush accumulated state information into the UI:
+- [x] Define a `BuildStatus` enum: `COMPILED`, `UP_TO_DATE`, `FAILED`.
+- [x] During the build, accumulate status into a `Map<ModuleNode, BuildStatus>`.
+- [x] On `FinishBuildEvent`, flush accumulated state information into the UI:
   use `DependencyGraphPanel.cellMap` to look up the mxGraph cell for each module,
   apply the appropriate fill color (green / gray / red), then repaint.
-- [ ] This accumulate-then-flush pattern is deliberately designed so that Phase 3 can
-  reuse the same state map with periodic flushing instead of end-of-build-only flushing.
 4. **UI feedback** (Optional)
 - [ ] Add a small status label above the graph summarizing the outcome:
   e.g. "Last build: 42 modules compiled, 10 skipped, 1 failed."
@@ -90,7 +86,7 @@ The only change is *when* accumulated state is flushed to the UI.
 Tasks:
 
 1. **Handle start events**
-- [ ] Extend the existing `BuildProgressListener` to also handle `StartEvent` for compile tasks,
+- [ ] Extend the existing `ExternalSystemTaskNotificationListener` to also handle `StartEvent` for compile tasks,
   transitioning the module to a "compiling" state (e.g. yellow).
 - [ ] Add `COMPILING` to the `BuildStatus` enum.
 - [ ] `FinishEvent` handling remains unchanged from Phase 2.

@@ -8,17 +8,16 @@
     <name>Gradle Build Visualizer</name>
 
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
-    <vendor email="den.shaikhatarov@gmail.com"> Denis Shaikhatarov</vendor>
+    <vendor email="den.shaikhatarov@gmail.com">Denis Shaikhatarov</vendor>
 
     <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-description -->
     <description><![CDATA[
-        Visualiser for compilation dependencies using a directed graph.<br>
+        Dynamic graph visualization for Gradle compilation dependencies.<br>
     ]]></description>
 
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
-
     <depends>com.intellij.java</depends>
     <depends>com.intellij.gradle</depends>
 

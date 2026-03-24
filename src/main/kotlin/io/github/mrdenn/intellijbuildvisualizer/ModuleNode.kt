@@ -3,13 +3,9 @@ package io.github.mrdenn.intellijbuildvisualizer
 /**
  * Immutable vertex type for the module dependency graph.
  *
- * Used as JGraphT vertex — [equals]/[hashCode] are auto-generated from both
- * fields, which is correct since two modules with the same display name but
- * different Gradle paths are distinct.
- *
- * @param displayName human-readable name shown in the graph (e.g. "my-project.core-utils")
- * @param gradleProjectPath Gradle project path (e.g. ":core-utils") for task-to-vertex
- *   mapping in Phase 2; null if the module is not linked to Gradle
+ * @param displayName human-readable label shown in graph vertices (e.g. "core-utils")
+ * @param gradleProjectPath Gradle project path (e.g. ":core-utils") used to map
+ *   build task events to graph vertices; null if the module has no Gradle linkage
  */
 data class ModuleNode(
     val displayName: String,

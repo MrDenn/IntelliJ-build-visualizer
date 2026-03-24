@@ -12,23 +12,13 @@ import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskNotifica
 import com.intellij.openapi.externalSystem.model.task.event.ExternalSystemBuildEvent
 
 /**
- * Collects per-module build outcomes from Gradle build events.
+ * Accumulates per-module build outcomes from Gradle compile task events.
  *
- * Implements [ExternalSystemTaskNotificationListener] and is registered with
- * [com.intellij.openapi.externalSystem.service.notification.ExternalSystemProgressNotificationManager],
- * which fires for all Gradle executions regardless of whether any UI is open.
- *
- * Events are filtered to compile tasks only, mapped to [ModuleNode] via
- * [pathIndexProvider] (the current Gradle-path -> ModuleNode index from
- * [BuildStatusService]), and accumulated in a synchronized map.
- * When the build ends, [onBuildFinished] is called so the service can
- * flush accumulated state to registered UI listeners.
- *
- * Thread safety: [onStatusChange] and [onEnd] are called on background threads;
+ * Thread safety: [onStatusChange] and [onEnd] run on background threads;
  * [drainStatuses] is called on the EDT. Both sides synchronize on [lock].
  *
- * @param pathIndexProvider returns the current path-to-node index; called at event
- *   time so the collector always uses the latest index after a Gradle sync
+ * @param pathIndexProvider called at event time to get the current Gradle-path-to-node
+ *   index, so it always reflects the latest state after a Gradle sync
  * @param onBuildFinished called when the Gradle execution ends
  */
 class BuildStatusCollector(
@@ -40,9 +30,10 @@ class BuildStatusCollector(
     private val statusMap = mutableMapOf<ModuleNode, BuildStatus>()
 
     /**
-     * Receives all Gradle build notifications. Unwraps [ExternalSystemBuildEvent]
-     * to access typed [com.intellij.build.events.BuildEvent] instances.
+     * [ExternalSystemBuildEvent] is `@ApiStatus.Experimental` but is the only API
+     * that provides typed build events for all Gradle executions (see PLAN.md).
      */
+    @Suppress("UnstableApiUsage")
     override fun onStatusChange(event: ExternalSystemTaskNotificationEvent) {
         if (event !is ExternalSystemBuildEvent) return
         val buildEvent = event.buildEvent
@@ -61,20 +52,14 @@ class BuildStatusCollector(
         }
     }
 
-    /**
-     * Called when the entire Gradle execution ends. Reliable fallback in case
-     * [FinishBuildEvent] is not delivered via [onStatusChange].
-     */
+    /** Fallback in case [FinishBuildEvent] is not delivered via [onStatusChange]. */
     @Suppress("OVERRIDE_DEPRECATION")
     override fun onEnd(id: ExternalSystemTaskId) {
         onBuildFinished()
     }
 
     /**
-     * Atomically snapshots and clears all accumulated statuses.
-     *
-     * Returns statuses collected since the last drain. The internal map is empty
-     * after this call. Phase 3 reuses this for periodic flushing during builds.
+     * Atomically snapshots and clears all accumulated statuses since the last drain.
      */
     fun drainStatuses(): Map<ModuleNode, BuildStatus> {
         synchronized(lock) {
@@ -85,9 +70,7 @@ class BuildStatusCollector(
     }
 
     /**
-     * Records a build status for a module, using [maxOf] to resolve conflicts
-     * when multiple compile tasks fire for the same module (e.g. compileKotlin
-     * followed by compileJava). [BuildStatus.FAILED] always takes priority.
+     * Uses [maxOf] so [BuildStatus.FAILED] wins when multiple tasks target the same module.
      */
     private fun recordStatus(node: ModuleNode, status: BuildStatus) {
         synchronized(lock) {
@@ -102,10 +85,7 @@ class BuildStatusCollector(
     }
 
     /**
-     * Extracts the Gradle project path from a full task path.
-     *
-     * Example: `:core-utils:compileKotlin` -> `:core-utils`
-     * Root project task: `:compileKotlin` -> `:`
+     * Example: `:core-utils:compileKotlin` -> `:core-utils`, `:compileKotlin` -> `:`
      */
     private fun extractGradlePath(taskPath: String): String? {
         val lastColon = taskPath.lastIndexOf(':')

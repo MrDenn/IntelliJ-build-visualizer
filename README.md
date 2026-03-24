@@ -15,7 +15,7 @@ during the build.
 
 ![Build Visualizer graph](assets/graph_static_(exposed).png)
 
-Static dependency graph rendered for the <code>Allali84/gradle-multiple-project</code> repository.
+Static dependency graph rendered for the `JetBrains/Exposed` repository.
 
 # The problem
 In large multi-module codebases, build slowdowns are a common issue, and they are hidden behind text logs that are 
@@ -44,9 +44,6 @@ features:
 
 More details are provided in dedicated [plan document](PLAN.md).
 
-
-
-
 # Design approach
 
 The plugin will be contained within the **Dependency Graph** tool window in the bottom left of IntelliJ. Within this 
@@ -71,41 +68,84 @@ Include two types of warnings in order to inform the user of possibly long compi
 
 # Technical decisions
 
-### Dependency data gathering
-- ModuleManager is used to query all available modules
-- Only ".main" modules are kept, as they should represent the module code itself
-- ModuleRootManager is used to query dependencies for each remaining module
-- Modules and dependencies do not update unless plugin is restarted
-- JGraphT is used to store the data instead of a custom data type, since it works well with JGraphX and is
-  sufficient for a prototype
-### Graph visualization
-- JGraphX is used to display the JGraphT object
-  - Even though it's not as customizeable as a custom rendering engine, it provides enough flexibility to make the
-    proof of concept look good
-- Nodes represent modules, directed edges represent dependencies
-- JBUI is used for (somewhat) dynamic coloring that adapts to the selected theme (Light/Dark)
+### Module and dependency data gathering
+- Modules are retrieved using `ModuleManager`, then filtered to only keep those that end with ".main".
+  - `ModuleManager` was chosen because it is built into IntelliJ and possesses the exact functionality needed in 
+    this case: retrieving all modules in a given project.
+  - Only `.main` modules are kept because IntelliJ represents each Gradle subproject as multiple modules (`.main`, 
+    `.test`, etc.) and the dependency structure and compilation is tied exclusively to the `.main` source set.
+- For each remaining module, its compile-scope dependencies are queried using `ModuleRootManager`.
+  - `ModuleRootManager` was chosen because it provides a convenient API to get all 
+    dependencies of a given module, and it works well with ModuleManager.
+- `ExternalSystemApiUtil.getExternalProjectId()` is used to obtain each module's Gradle project path
+  while stripping the `:main` suffix from them. These are used for mapping build events to graph nodes when 
+  recoloring the graph.
+  - 
 
-# Planned Features [MoSCoW]
+### Module and dependency data storage
+- After the module and dependency data is gathered, it is stored in a `JGraphT` `Graph` object, with custom `ModuleNode`
+  nodes to represent modules, and default `JGraphT` edges representing dependencies between them.
+  - The `Graph` data structure was chosen due to its compatibility with `JGraphX` for visualization, and
+    its clean API that does not require a custom directed graph implementation.
+  - `ModuleNode` is an immutable data class, that was created to bridge module display information with the Gradle API.
+    In order to do that, it is used as a key for various maps and contains:
+    - Module name – for display purposes (derived from the Gradle path)
+    - Gradle path – for mapping build events to graph nodes when recoloring the graph.
+
+### Build event listening
+- An `ExternalSystemTaskNotificationListener` registered via `ExternalSystemProgressNotificationManager`
+  is used to collect build events. `ExternalSystemBuildEvent` is used to unwrap notification events, which are then
+  used to determine which modules are being compiled and recolor the graph accordingly.
+  - `ExternalSystemTaskNotificationListener` was chosen over `ProjectTaskListener.TOPIC` because the latter only fires
+    for IDE-intialized builds, while the former fires for all Gradle executions unconditionally, including those started
+    from the command line or Gradle tool window, which is worth the added complexity.
+  - `ExternalSystemBuildEvent` is marked as `@ApiStatus.Experimental`, but its use here is appropriate, since
+    this plugin is merely a prototype, and there is no stable alternative with the same coverage.
+    Its usage is documented, and related warnings are explicitly suppressed.
+  - The listener is owned by `BuildStatusService`, which is project-level rather than attached the tool window,
+    so build events are never missed regardless of whether the tool window has been opened.
+
+### Graph visualization
+- `JGraphX` (a.k.a. `mxGraph`) is used for rendering, with the `JGraphT` object being converted to an `mxGraph` jazily, 
+  only when the user opens the **Dependency Graph** tab for the first time.
+  - A third-party rendering library was chosen as a compromise between ease of use and customizability. Writing a custom
+    renderer from scratch would be way too complex and time-consuming for a prototype.
+  - `JGraphX` was chosen because it is widely used in Java applications, and therefore compatible with Kotlin
+     and IntelliJ plugin development, and provides a convenient, but still reasonably customizeable API.
+  - Lazy conversion was chosen to decouple module data storage from the visualization, since the former changes 
+    only on Gradle refreshes, while the latter updates on Gradle build finishes and in real time during builds.
+- Use of JBUI colors was chosen to implement (somewhat) dynamic coloring that adapts to both light and dark themes.
+
+# Feature Scope [MoSCoW]
 
 ### Must
 - **Dependency Graph** tool window showing inter-module dependencies as a directed graph
-- Graceful handling of non-Gradle projects (empty state message)
+- Graph refresh on Gradle project reload / sync
 - Post-build node coloring reflecting per-module outcome (compiled / skipped / failed)
-- Pre-build impact preview: highlight changed modules and their transitive dependents based on the current changelist
-- ABI-incompatibility warning banner when a changelist contains public API changes
+- Real-time node state updates during the build (compiling / done / failed)
 
 ### Should
-- Real-time node state updates during the build (compiling / done / failed as tasks progress)
-- Graph refresh on Gradle project reload / sync
 - PSI-based ABI heuristic distinguishing public signature changes from internal-only edits
+- ABI-incompatibility warning banner when a changelist contains public API changes
+- Pre-build impact preview: highlight changed modules and their transitive dependents based on the current changelist
 
 ### Could
+- Graceful handling of non-Gradle projects (empty state message)
+- Toolbar actions for zoom in / zoom out / fit to screen
 - Node detail panel on click (module name, Gradle path, last build status)
 - View toggle between structure-only, last-build overlay, and changelist impact overlay
-- Toolbar actions for zoom in / zoom out / fit to screen
 
 ### Won't
 - Support for build systems other than Gradle
   - This would likely require a complete rewrite and is too complex for a proof of concept
+- Custom graph renderer
+  - Most of the visual downsides of the `mxGraph` renderer can be worked around, and the level of customization
+    it provides is sufficient for a prototype, while the overhead of a custom renderer would be unreasonable for a
+    proof of concept
+- Custom graph layout algorithms
+  - Even though the `mxGraph` hierarchical layout may not be perfectly readable for large codebases, it is good enough 
+    for a prototype, and implementing custom layouts would be too complex for the marginal gain in clarity
+  - Instead, other features can be implemented that can improve readability without a complete overhaul of the layout
 - Exact ABI equivalence
-  - Gradle uses a heuristic system, and replicating its incremental compilation logic is out of scope for a prototype
+  - Gradle uses a heuristic system, which is more than enough for this proof-of-concept prototype despite not being 
+    perfectly accurate
