@@ -28,6 +28,8 @@ import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
+import javax.swing.UIManager
+import kotlin.math.absoluteValue
 import kotlin.math.pow
 
 /**
@@ -176,6 +178,7 @@ class DependencyGraphPanel(
      * Replaces the graph content, re-applies layout and margins, and re-centers.
      */
     fun rebuild(newGraph: Graph<ModuleNode, DefaultEdge>) {
+        // Single outer update so the canvas repaints only once, after all changes are ready
         graph.model.beginUpdate()
         try {
             // removeCells() silently fails here, so children are iterated manually
@@ -183,18 +186,19 @@ class DependencyGraphPanel(
             while (graph.model.getChildCount(parent) > 0) {
                 graph.model.remove(graph.model.getChildAt(parent, 0))
             }
+            populateGraph(newGraph)
+            applyLayout()
+            applyMargins()
         } finally {
             graph.model.endUpdate()
         }
-        populateGraph(newGraph)
-        applyLayout()
-        applyMargins()
         graphComponent.refresh()
         SwingUtilities.invokeLater(::centerGraph)
     }
 
     /**
-     * Overrides only [mxConstants.STYLE_FILLCOLOR], preserving all other vertex styles.
+     * Overrides [mxConstants.STYLE_FILLCOLOR] and [mxConstants.STYLE_STROKECOLOR],
+     * preserving all other vertex styles.
      */
     fun applyBuildStatuses(statuses: Map<ModuleNode, BuildStatus>) {
         if (statuses.isEmpty()) return
@@ -202,11 +206,10 @@ class DependencyGraphPanel(
         try {
             for ((node, status) in statuses) {
                 val cell = cellMap[node] ?: continue
-                val currentStyle = graph.model.getStyle(cell) ?: ""
-                val newStyle = mxStyleUtils.setStyle(
-                    currentStyle, mxConstants.STYLE_FILLCOLOR, colorToHex(status.color)
-                )
-                graph.model.setStyle(cell, newStyle)
+                var style = graph.model.getStyle(cell) ?: ""
+                style = mxStyleUtils.setStyle(style, mxConstants.STYLE_FILLCOLOR, colorToHex(status.fillColor))
+                style = mxStyleUtils.setStyle(style, mxConstants.STYLE_STROKECOLOR, colorToHex(status.strokeColor))
+                graph.model.setStyle(cell, style)
             }
         } finally {
             graph.model.endUpdate()
@@ -234,18 +237,22 @@ class DependencyGraphPanel(
         val vertexStyle = graph.stylesheet.defaultVertexStyle
         val edgeStyle = graph.stylesheet.defaultEdgeStyle
 
-        val fillColor = JBColor(Color(0xE8, 0xF0, 0xFE), Color(0x3C, 0x3F, 0x41))
-        val borderColor = JBColor(Color(0x6B, 0x9B, 0xD2), Color(0x5E, 0x6A, 0x75))
-        val fontColor = JBColor(Gray._26, Gray._187)
+        val fillColor = JBColor(0xf6f7f9, 0x222426)
+        val borderColor = JBColor(0x66686a, 0x92969e)
+        val fontColor = JBColor(0x000000, 0xc7cad0)
+        val edgeColor = JBColor(0x46484a, 0x7b7f86)
         vertexStyle[mxConstants.STYLE_FILLCOLOR] = colorToHex(fillColor)
         vertexStyle[mxConstants.STYLE_STROKECOLOR] = colorToHex(borderColor)
         vertexStyle[mxConstants.STYLE_FONTCOLOR] = colorToHex(fontColor)
+        edgeStyle[mxConstants.STYLE_STROKECOLOR] = colorToHex(borderColor)
 
+        vertexStyle[mxConstants.STYLE_STROKEWIDTH] = 3
         vertexStyle[mxConstants.STYLE_ROUNDED] = true
         vertexStyle[mxConstants.STYLE_ARCSIZE] = 50
         vertexStyle[mxConstants.STYLE_SHADOW] = false
 
-        vertexStyle[mxConstants.STYLE_FONTSIZE] = JBUI.scaleFontSize(12f)
+        vertexStyle[mxConstants.STYLE_FONTFAMILY] = JBUI.Fonts.label().family
+        vertexStyle[mxConstants.STYLE_FONTSIZE] = JBUI.Fonts.label().size
         vertexStyle[mxConstants.STYLE_FONTSTYLE] = 0
 
         vertexStyle[mxConstants.STYLE_ALIGN] = mxConstants.ALIGN_CENTER
@@ -257,16 +264,16 @@ class DependencyGraphPanel(
         val padding = JBUI.scale(8)
         vertexStyle[mxConstants.STYLE_SPACING_TOP] = padding
         vertexStyle[mxConstants.STYLE_SPACING_BOTTOM] = padding * 6 / 10
-        vertexStyle[mxConstants.STYLE_SPACING_LEFT] = padding * 10 / 9
-        vertexStyle[mxConstants.STYLE_SPACING_RIGHT] = padding
+        vertexStyle[mxConstants.STYLE_SPACING_LEFT] = 1.5 * padding * 10 / 9
+        vertexStyle[mxConstants.STYLE_SPACING_RIGHT] = 1.5 * padding
 
-        val edgeColor = JBColor(Gray._136, Gray._119)
-        edgeStyle[mxConstants.STYLE_STROKECOLOR] = colorToHex(edgeColor)
-        edgeStyle[mxConstants.STYLE_STROKEWIDTH] = 1.5
-        edgeStyle[mxConstants.STYLE_ENDARROW] = mxConstants.ARROW_CLASSIC
-        edgeStyle[mxConstants.STYLE_EDGE] = mxConstants.EDGESTYLE_ORTHOGONAL
+        edgeStyle[mxConstants.STYLE_STROKEWIDTH] = 3
+
+        edgeStyle[mxConstants.STYLE_ENDARROW] = mxConstants.ARROW_OPEN
         edgeStyle[mxConstants.STYLE_ROUNDED] = true
-        edgeStyle[mxConstants.STYLE_ENDSIZE] = 6
+        edgeStyle[mxConstants.STYLE_ENDSIZE] = JBUI.scale(6)
+
+        edgeStyle[mxConstants.STYLE_OPACITY] = 66
     }
 
     /**
@@ -301,7 +308,7 @@ class DependencyGraphPanel(
 
     private fun applyLayout() {
         val layout = mxHierarchicalLayout(graph, SwingConstants.NORTH)
-        layout.interRankCellSpacing = JBUI.scale(60).toDouble()
+        layout.interRankCellSpacing = JBUI.scale(70).toDouble()
         layout.intraCellSpacing = JBUI.scale(20).toDouble()
         layout.execute(graph.defaultParent)
     }

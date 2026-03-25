@@ -7,12 +7,13 @@ import com.intellij.openapi.roots.ModuleRootListener
 import com.intellij.openapi.ui.SimpleToolWindowPanel
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.ToolWindow
+import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.content.ContentFactory
 import com.intellij.util.Alarm
 import java.awt.BorderLayout
 
-class BuildVisualizerToolWindowFactory : ToolWindowFactory {
+class BuildVisualizerToolWindowFactory : ToolWindowFactory, DumbAware {
     override fun shouldBeAvailable(project: Project) = true
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {

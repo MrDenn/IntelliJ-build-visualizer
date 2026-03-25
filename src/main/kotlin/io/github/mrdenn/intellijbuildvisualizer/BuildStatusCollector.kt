@@ -104,6 +104,7 @@ class BuildStatusCollector(
     private fun isCompileTask(taskPath: String): Boolean {
         val taskName = taskPath.substringAfterLast(':')
         return taskName.startsWith("compile") &&
+                !taskName.startsWith("compileTest") &&
                 (taskName.endsWith("Kotlin") || taskName.endsWith("Java"))
     }
 

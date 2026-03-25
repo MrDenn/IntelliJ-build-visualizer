@@ -9,6 +9,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ModuleRootEvent
 import com.intellij.openapi.roots.ModuleRootListener
 import com.intellij.util.Alarm
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Project-level service that collects per-module build outcomes from Gradle.
@@ -40,7 +41,9 @@ class BuildStatusService(private val project: Project) : Disposable {
      */
     private val flushAlarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
 
-    @Volatile private var buildActive = false
+    // compareAndSet ensures schedulePeriodicFlush() fires exactly once per build,
+    // even though both StartBuildEvent and onStart(id) call onBuildStarted()
+    private val buildActive = AtomicBoolean(false)
 
     @Volatile
     private var gradlePathIndex: Map<String, ModuleNode> = buildPathIndex()
@@ -89,12 +92,16 @@ class BuildStatusService(private val project: Project) : Disposable {
     }
 
     private fun onBuildStarted() {
-        buildActive = true
-        schedulePeriodicFlush()
+        if (buildActive.compareAndSet(false, true)) {
+            // Clear previous build's statuses so cross-build maxOf doesn't let old FAILED
+            // block a COMPILED result from a new build
+            synchronized(statusLock) { accumulatedStatuses.clear() }
+            schedulePeriodicFlush()
+        }
     }
 
     private fun onBuildFinished() {
-        buildActive = false
+        buildActive.set(false)
         flushAlarm.cancelAllRequests()
         flushToUi()
     }
@@ -109,7 +116,11 @@ class BuildStatusService(private val project: Project) : Disposable {
         // putAll replaces per-module across builds; within-build maxOf is handled by the collector
         val snapshot: Map<ModuleNode, BuildStatus>
         synchronized(statusLock) {
-            accumulatedStatuses.putAll(newStatuses)
+            // merge(maxOf) so a later drain with UP_TO_DATE from a skipped compileJava
+            // cannot overwrite COMPILED already recorded from compileKotlin in an earlier tick
+            for ((node, status) in newStatuses) {
+                accumulatedStatuses.merge(node, status) { old, new -> maxOf(old, new) }
+            }
             snapshot = HashMap(accumulatedStatuses)
         }
         ApplicationManager.getApplication().invokeLater {
@@ -121,7 +132,7 @@ class BuildStatusService(private val project: Project) : Disposable {
     private fun schedulePeriodicFlush() {
         flushAlarm.addRequest({
             flushToUi()
-            if (buildActive) schedulePeriodicFlush()
+            if (buildActive.get()) schedulePeriodicFlush()
         }, FLUSH_INTERVAL_MS)
     }
 
