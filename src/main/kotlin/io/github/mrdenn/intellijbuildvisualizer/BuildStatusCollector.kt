@@ -5,6 +5,8 @@ import com.intellij.build.events.FailureResult
 import com.intellij.build.events.FinishBuildEvent
 import com.intellij.build.events.FinishEvent
 import com.intellij.build.events.SkippedResult
+import com.intellij.build.events.StartBuildEvent
+import com.intellij.build.events.StartEvent
 import com.intellij.build.events.SuccessResult
 import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskId
 import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskNotificationEvent
@@ -19,10 +21,12 @@ import com.intellij.openapi.externalSystem.model.task.event.ExternalSystemBuildE
  *
  * @param pathIndexProvider called at event time to get the current Gradle-path-to-node
  *   index, so it always reflects the latest state after a Gradle sync
+ * @param onBuildStarted called when a Gradle execution begins
  * @param onBuildFinished called when the Gradle execution ends
  */
 class BuildStatusCollector(
     private val pathIndexProvider: () -> Map<String, ModuleNode>,
+    private val onBuildStarted: () -> Unit,
     private val onBuildFinished: () -> Unit
 ) : ExternalSystemTaskNotificationListener {
 
@@ -38,12 +42,21 @@ class BuildStatusCollector(
         if (event !is ExternalSystemBuildEvent) return
         val buildEvent = event.buildEvent
 
+        // StartBuildEvent/FinishBuildEvent must precede StartEvent/FinishEvent
+        // because the Build variants extend the base variants
         when (buildEvent) {
+            is StartBuildEvent -> onBuildStarted()
             is FinishBuildEvent -> onBuildFinished()
+            is StartEvent -> {
+                val taskPath = buildEvent.message
+                if (!isCompileTask(taskPath)) return
+                val gradlePath = extractGradlePath(taskPath) ?: return
+                val node = pathIndexProvider()[gradlePath] ?: return
+                recordStatus(node, BuildStatus.COMPILING)
+            }
             is FinishEvent -> {
                 val taskPath = buildEvent.message
                 if (!isCompileTask(taskPath)) return
-
                 val gradlePath = extractGradlePath(taskPath) ?: return
                 val node = pathIndexProvider()[gradlePath] ?: return
                 val status = classifyResult(buildEvent.result)
@@ -52,7 +65,17 @@ class BuildStatusCollector(
         }
     }
 
-    /** Fallback in case [FinishBuildEvent] is not delivered via [onStatusChange]. */
+    /**
+     * Fallback in case [StartBuildEvent] is not delivered via [onStatusChange].
+     */
+    @Suppress("OVERRIDE_DEPRECATION")
+    override fun onStart(id: ExternalSystemTaskId) {
+        onBuildStarted()
+    }
+
+    /**
+     * Fallback in case [FinishBuildEvent] is not delivered via [onStatusChange].
+     */
     @Suppress("OVERRIDE_DEPRECATION")
     override fun onEnd(id: ExternalSystemTaskId) {
         onBuildFinished()

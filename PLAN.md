@@ -86,19 +86,19 @@ The only change is *when* accumulated state is flushed to the UI.
 Tasks:
 
 1. **Handle start events**
-- [ ] Extend the existing `ExternalSystemTaskNotificationListener` to also handle `StartEvent` for compile tasks,
+- [x] Extend the existing `ExternalSystemTaskNotificationListener` to also handle `StartEvent` for compile tasks,
   transitioning the module to a "compiling" state (e.g. yellow).
-- [ ] Add `COMPILING` to the `BuildStatus` enum.
-- [ ] `FinishEvent` handling remains unchanged from Phase 2.
+- [x] Add `COMPILING` to the `BuildStatus` enum.
+- [x] `FinishEvent` handling remains unchanged from Phase 2.
 2. **Periodic batch flushing**
-- [ ] Add an `Alarm(Alarm.ThreadToUse.SWING_THREAD)` that fires every 100–200ms while a build is active.
-- [ ] On each tick, flush all accumulated state changes since the last tick to the UI
+- [x] Add an `Alarm(Alarm.ThreadToUse.SWING_THREAD)` that fires every 100ms while a build is active.
+- [x] On each tick, flush all accumulated state changes since the last tick to the UI
   (same cell lookup + restyle + repaint logic as Phase 2's end-of-build flush).
-- [ ] Cancel the alarm when `FinishBuildEvent` arrives (after a final flush).
-- [ ] This reuses the same `Map<ModuleNode, BuildStatus>` from Phase 2 - the only difference
+- [x] Cancel the alarm when `FinishBuildEvent` arrives (after a final flush).
+- [x] This reuses the same `Map<ModuleNode, BuildStatus>` from Phase 2 - the only difference
   is that changes are now also flushed periodically during the build, not only at the end.
 3. **Threading**
-- [ ] All UI updates (mxGraph style changes, repaint) run on the event dispatch thread,
+- [x] All UI updates (mxGraph style changes, repaint) run on the event dispatch thread,
   since `Alarm.ThreadToUse.SWING_THREAD` is used for periodic flushes
   and `ApplicationManager.getApplication().invokeLater` for the final flush.
 

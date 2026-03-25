@@ -8,6 +8,7 @@ import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ModuleRootEvent
 import com.intellij.openapi.roots.ModuleRootListener
+import com.intellij.util.Alarm
 
 /**
  * Project-level service that collects per-module build outcomes from Gradle.
@@ -18,7 +19,9 @@ import com.intellij.openapi.roots.ModuleRootListener
 @Service(Service.Level.PROJECT)
 class BuildStatusService(private val project: Project) : Disposable {
 
-    /** Notified on the EDT after each build finishes. */
+    /**
+     * Notified on the EDT when build statuses change (during and after builds).
+     */
     fun interface UiListener {
         fun onBuildStatusesAvailable(statuses: Map<ModuleNode, BuildStatus>)
     }
@@ -27,15 +30,25 @@ class BuildStatusService(private val project: Project) : Disposable {
 
     private val statusLock = Any()
 
-    /** Last-known status per module, accumulated across builds. Guarded by [statusLock]. */
+    /**
+     * Last-known status per module, accumulated across builds. Guarded by [statusLock].
+     */
     private val accumulatedStatuses = mutableMapOf<ModuleNode, BuildStatus>()
+
+    /**
+     * Periodically flushes accumulated statuses to the UI during a build.
+     */
+    private val flushAlarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
+
+    @Volatile private var buildActive = false
 
     @Volatile
     private var gradlePathIndex: Map<String, ModuleNode> = buildPathIndex()
 
     private val collector = BuildStatusCollector(
         pathIndexProvider = { gradlePathIndex },
-        onBuildFinished = { notifyUiListeners() }
+        onBuildStarted = { onBuildStarted() },
+        onBuildFinished = { onBuildFinished() }
     )
 
     init {
@@ -61,17 +74,36 @@ class BuildStatusService(private val project: Project) : Disposable {
         synchronized(statusLock) { return HashMap(accumulatedStatuses) }
     }
 
-    /** Registers [listener] to be notified on the EDT after each build finishes. */
+    /**
+     * Registers [listener] to be notified on the EDT after each build finishes.
+     */
     fun addUiListener(listener: UiListener) {
         synchronized(uiListeners) { uiListeners.add(listener) }
     }
 
-    /** Removes a previously registered [listener]. */
+    /**
+     * Removes a previously registered [listener].
+     */
     fun removeUiListener(listener: UiListener) {
         synchronized(uiListeners) { uiListeners.remove(listener) }
     }
 
-    private fun notifyUiListeners() {
+    private fun onBuildStarted() {
+        buildActive = true
+        schedulePeriodicFlush()
+    }
+
+    private fun onBuildFinished() {
+        buildActive = false
+        flushAlarm.cancelAllRequests()
+        flushToUi()
+    }
+
+    /**
+     * Drains the collector, merges into [accumulatedStatuses], and notifies UI listeners.
+     * Called both periodically during a build and once after it finishes.
+     */
+    private fun flushToUi() {
         val newStatuses = collector.drainStatuses()
         if (newStatuses.isEmpty()) return
         // putAll replaces per-module across builds; within-build maxOf is handled by the collector
@@ -86,6 +118,13 @@ class BuildStatusService(private val project: Project) : Disposable {
         }
     }
 
+    private fun schedulePeriodicFlush() {
+        flushAlarm.addRequest({
+            flushToUi()
+            if (buildActive) schedulePeriodicFlush()
+        }, FLUSH_INTERVAL_MS)
+    }
+
     /**
      * Builds a Gradle-project-path -> [ModuleNode] index from main source set modules.
      */
@@ -95,8 +134,9 @@ class BuildStatusService(private val project: Project) : Disposable {
             .mapNotNull { node -> node.gradleProjectPath?.let { it to node } }
             .toMap()
 
-    /**
-     * No-op: all resources are tied to this service's disposable lifetime.
-     */
     override fun dispose() {}
+
+    companion object {
+        private const val FLUSH_INTERVAL_MS = 100
+    }
 }
