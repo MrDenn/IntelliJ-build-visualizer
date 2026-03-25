@@ -11,11 +11,13 @@
 
 An IntelliJ plugin that shows Gradle's incremental compilation decisions on a module dependency graph - live,
 during the build.
-<br>
+![Build Visualizer graph](assets/graph_dynamic_(gradle-multiple-project).gif)
+Real-time build tracking via dependency graph for the `Allali84/gradle-multiple-project` repository. The build is 
+executed two times in a row, first compiling all modules (coloring them green), then confirming that they are all 
+up-to-date (making them blue).
 
 ![Build Visualizer graph](assets/graph_static_(exposed).png)
-
-Static dependency graph rendered for the `JetBrains/Exposed` repository.
+Static visualisation of dependencies for the `JetBrains/Exposed` repository.
 
 # The problem
 In large multi-module codebases, build slowdowns are a common issue, and they are hidden behind text logs that are 
@@ -36,7 +38,7 @@ features:
 
 - [x] Basic graph visualization of modules and dependencies
 - [x] Graph refresh on Gradle project reload / sync
-- [ ] Graph updates during the build to reflect module states (compiling / done / failed)
+- [x] Graph updates during the build to reflect module states (compiling / done / failed)
 - [ ] PSI-based ABI heuristic distinguishing public signature changes from internal-only edits
 - [ ] ABI-incompatibility warning banner when a changelist contains public API changes
 - [ ] "Are you sure?" dialogue window when launching a build with an ABI-incompatible changelist
