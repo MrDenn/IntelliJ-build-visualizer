@@ -5,7 +5,6 @@ import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
-import com.intellij.ui.Gray
 import com.intellij.ui.JBColor
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
@@ -28,8 +27,6 @@ import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
-import javax.swing.UIManager
-import kotlin.math.absoluteValue
 import kotlin.math.pow
 
 /**
@@ -240,7 +237,6 @@ class DependencyGraphPanel(
         val fillColor = JBColor(0xf6f7f9, 0x222426)
         val borderColor = JBColor(0x66686a, 0x92969e)
         val fontColor = JBColor(0x000000, 0xc7cad0)
-        val edgeColor = JBColor(0x46484a, 0x7b7f86)
         vertexStyle[mxConstants.STYLE_FILLCOLOR] = colorToHex(fillColor)
         vertexStyle[mxConstants.STYLE_STROKECOLOR] = colorToHex(borderColor)
         vertexStyle[mxConstants.STYLE_FONTCOLOR] = colorToHex(fontColor)
