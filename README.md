@@ -17,7 +17,7 @@ executed two times in a row, first compiling all modules (coloring them green), 
 up-to-date (making them blue).
 
 ![Build Visualizer graph](assets/graph_static_(exposed).png)
-Static visualisation of dependencies for the `JetBrains/Exposed` repository.
+Static visualization of dependencies for the `JetBrains/Exposed` repository.
 
 # The problem
 In large multi-module codebases, build slowdowns are a common issue, and they are hidden behind text logs that are 
@@ -54,8 +54,9 @@ UI, there will be two main elements to properly inform the user of the scope of 
 ### Module dependency graph
 
 Being the centerpiece of the **Dependency Graph**, will represent inter-module dependencies through a directed 
-graph. The graph will only show dependencies between the changed and affected (dependent on the former) modules.  
-This visualization will both be a passive and an active indicator of build execution scope:
+graph. The graph will be able to show dependencies between all modules, or between changed and affected modules (a 
+chocice given to the user through a toggle). This visualization will both be a passive and an active indicator of 
+build execution scope:
 - Before the build, it will display all modules, which are affected by current changes and will need to be recompiled;
 - During the build, the colors of each node in the graph will be updated in real time to represent modules being 
   recompiled, skipped, and completed.
@@ -82,7 +83,6 @@ Include two types of warnings in order to inform the user of possibly long compi
 - `ExternalSystemApiUtil.getExternalProjectId()` is used to obtain each module's Gradle project path
   while stripping the `:main` suffix from them. These are used for mapping build events to graph nodes when 
   recoloring the graph.
-  - 
 
 ### Module and dependency data storage
 - After the module and dependency data is gathered, it is stored in a `JGraphT` `Graph` object, with custom `ModuleNode`
