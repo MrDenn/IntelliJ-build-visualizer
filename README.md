@@ -118,6 +118,41 @@ Include two types of warnings in order to inform the user of possibly long compi
     only on Gradle refreshes, while the latter updates on Gradle build finishes and in real time during builds.
 - Use of JBUI colors was chosen to implement (somewhat) dynamic coloring that adapts to both light and dark themes.
 
+### Graph real-time updates
+- During a build, separation of concerns is implemented by splitting the functionality into three classes / services:
+  `BuildStatusCollector` catches raw build events while running on a background thread, `BuildStatusService` 
+  periodically drains these events and merges them into a graph snapshot on the EDT, and `DependencyGraphPanel` applies 
+  the merged snapshot to graph cells.
+  - The former and the latter were separated to allow for a lock-free event collection, while the UI updates, which 
+    take more time, are performed asynchronously, in batches.
+  - The `BuildStatusService` is separated to allow for a completely independent "source of truth" that stores a 
+    stable, relatively up-to-date snapshot of the current build/compilation state.
+- Flushes to the UI are scheduled using coroutines on the EDT every 100 ms, non-destructively reading the states 
+  from the `BuildStatusService`.
+  - Coroutines were chosen as the most up-to-date implementation of concurrency in Kotlin, and `invokeLater` was 
+    chosen as the most straightforward way to schedule work on the EDT.
+  - The 100 ms interval was chosen as a sweet spot between UI responsiveness and overhead of too frequent updates, 
+    but it can be easily tweaked later, as it's stored in a companion object.
+- `BuildStatus` severity ordering (`COMPILING < UP_TO_DATE < COMPILED < FAILED`) is enforced
+  via `merge(maxOf)` at two levels — within a single flush in the `BuildStatusCollector`, and across drains in
+  the `BuildStatusService`.
+  - This is necessary in the Collector because a single drain can contain multiple events for the same module. For 
+    instance, `COMPILING` and `COMPILED` events can be processed in the wrong order, so `maxOf` is there to ensure 
+    that the more "severe" status is kept.
+  - This is necessary in the Service because Gradle emits separate compile tasks per language (`compileKotlin` 
+    finishes as `COMPILED`, then `compileJava` finishes as `UP_TO_DATE` for the same module), and these can land in 
+    different drain ticks. Without cross-drain `maxOf`, a later `UP_TO_DATE` would silently overwrite an earlier 
+    `COMPILED`.
+- The `AtomicBoolean.compareAndSet` gates the launch of the flush coroutine from `BuildStatusCollector`, being set to 
+  `true` during the build, and reset to `false` on build finish.
+  - This is necessary because during a regular build, both `StartBuildEvent` (via a caught `onStatusChange` event) and 
+    `onStart(id)` (lifecycle fallback) fire, which would cause two parallel flush loops would run, doubling EDT work.
+    The `AtomicBoolean` gate ensures that only one of these launches the flush loop.
+- Statuses, accumulated in `BuildStatusService` during the build, are cleared on next build start.
+  - This approach was chosen to prevent a stale `FAILED` status from a previous build from blocking the `COMPILED` 
+    status of the next build due to severity ordering.
+  - This also means that, conveniently, the `gradle clean` command clears all graph states.
+
 # Feature Scope [MoSCoW]
 
 ### Must

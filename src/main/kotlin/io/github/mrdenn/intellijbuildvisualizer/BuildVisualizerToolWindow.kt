@@ -1,6 +1,7 @@
 package io.github.mrdenn.intellijbuildvisualizer
 
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ModuleRootEvent
 import com.intellij.openapi.roots.ModuleRootListener
@@ -10,8 +11,15 @@ import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.content.ContentFactory
-import com.intellij.util.Alarm
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.awt.BorderLayout
+import kotlin.time.Duration.Companion.milliseconds
 
 class BuildVisualizerToolWindowFactory : ToolWindowFactory, DumbAware {
     override fun shouldBeAvailable(project: Project) = true
@@ -37,7 +45,8 @@ class BuildVisualizerToolWindow(
 
     private val graphPanel: DependencyGraphPanel
     private val content: SimpleToolWindowPanel
-    private val alarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
+    private val cs = CoroutineScope(SupervisorJob() + Dispatchers.EDT)
+    private var rebuildJob: Job? = null
     private val buildStatusService = project.getService(BuildStatusService::class.java)
 
     private val uiListener = BuildStatusService.UiListener { statuses ->
@@ -68,8 +77,11 @@ class BuildVisualizerToolWindow(
     }
 
     private fun scheduleRebuild() {
-        alarm.cancelAllRequests()
-        alarm.addRequest(::rebuild, DEBOUNCE_DELAY_MS)
+        rebuildJob?.cancel()
+        rebuildJob = cs.launch {
+            delay(DEBOUNCE_DELAY_MS.toLong().milliseconds)
+            rebuild()
+        }
     }
 
     private fun rebuild() {
@@ -81,6 +93,7 @@ class BuildVisualizerToolWindow(
     fun getContent(): SimpleToolWindowPanel = content
 
     override fun dispose() {
+        cs.cancel()
         buildStatusService.removeUiListener(uiListener)
     }
 

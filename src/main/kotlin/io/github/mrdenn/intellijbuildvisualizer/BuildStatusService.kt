@@ -2,14 +2,20 @@ package io.github.mrdenn.intellijbuildvisualizer
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.externalSystem.service.notification.ExternalSystemProgressNotificationManager
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ModuleRootEvent
 import com.intellij.openapi.roots.ModuleRootListener
-import com.intellij.util.Alarm
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Project-level service that collects per-module build outcomes from Gradle.
@@ -18,7 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * events are captured even before the tool window is first opened.
  */
 @Service(Service.Level.PROJECT)
-class BuildStatusService(private val project: Project) : Disposable {
+class BuildStatusService(private val project: Project, private val cs: CoroutineScope) : Disposable {
 
     /**
      * Notified on the EDT when build statuses change (during and after builds).
@@ -36,12 +42,9 @@ class BuildStatusService(private val project: Project) : Disposable {
      */
     private val accumulatedStatuses = mutableMapOf<ModuleNode, BuildStatus>()
 
-    /**
-     * Periodically flushes accumulated statuses to the UI during a build.
-     */
-    private val flushAlarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
+    private var flushJob: Job? = null
 
-    // compareAndSet ensures schedulePeriodicFlush() fires exactly once per build,
+    // compareAndSet ensures the flush coroutine is launched exactly once per build,
     // even though both StartBuildEvent and onStart(id) call onBuildStarted()
     private val buildActive = AtomicBoolean(false)
 
@@ -96,13 +99,19 @@ class BuildStatusService(private val project: Project) : Disposable {
             // Clear previous build's statuses so cross-build maxOf doesn't let old FAILED
             // block a COMPILED result from a new build
             synchronized(statusLock) { accumulatedStatuses.clear() }
-            schedulePeriodicFlush()
+            flushJob = cs.launch(Dispatchers.EDT) {
+                while (true) {
+                    delay(FLUSH_INTERVAL_MS.milliseconds)
+                    flushToUi()
+                }
+            }
         }
     }
 
     private fun onBuildFinished() {
         buildActive.set(false)
-        flushAlarm.cancelAllRequests()
+        flushJob?.cancel()
+        flushJob = null
         flushToUi()
     }
 
@@ -129,13 +138,6 @@ class BuildStatusService(private val project: Project) : Disposable {
         }
     }
 
-    private fun schedulePeriodicFlush() {
-        flushAlarm.addRequest({
-            flushToUi()
-            if (buildActive.get()) schedulePeriodicFlush()
-        }, FLUSH_INTERVAL_MS)
-    }
-
     /**
      * Builds a Gradle-project-path -> [ModuleNode] index from main source set modules.
      */
@@ -148,6 +150,6 @@ class BuildStatusService(private val project: Project) : Disposable {
     override fun dispose() {}
 
     companion object {
-        private const val FLUSH_INTERVAL_MS = 100
+        private const val FLUSH_INTERVAL_MS = 100L
     }
 }

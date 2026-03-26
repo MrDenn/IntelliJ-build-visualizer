@@ -55,8 +55,8 @@ that Phase 3 will reuse for real-time updates.
 Tasks:
 
 1. **Listen to Gradle build events**
-- [x] Register an `ExternalSystemTaskNotificationListener` with
-  `ExternalSystemProgressNotificationManager` for the project lifetime.
+- [x] Register an `ExternalSystemTaskNotificationListener` with `ExternalSystemProgressNotificationManager` for the 
+  project lifetime.
 - [x] Collect `FinishEvent` events for compile tasks (`compileKotlin`, `compileJava`).
 - [x] Classify each module's outcome from the typed `FinishEvent.result`:
   - `SuccessResult` for successful compilation
@@ -68,12 +68,11 @@ Tasks:
 3. **Accumulate state, flush on build completion**
 - [x] Define a `BuildStatus` enum: `COMPILED`, `UP_TO_DATE`, `FAILED`.
 - [x] During the build, accumulate status into a `Map<ModuleNode, BuildStatus>`.
-- [x] On `FinishBuildEvent`, flush accumulated state information into the UI:
-  use `DependencyGraphPanel.cellMap` to look up the mxGraph cell for each module,
-  apply the appropriate fill color (green / gray / red), then repaint.
+- [x] On `FinishBuildEvent`, flush accumulated state information into the UI: use `DependencyGraphPanel.cellMap` to 
+  look up the mxGraph cell for each module, apply the appropriate fill color (green / gray / red), then repaint.
 4. **UI feedback** (Optional)
-- [ ] Add a small status label above the graph summarizing the outcome:
-  e.g. "Last build: 42 modules compiled, 10 skipped, 1 failed."
+- [ ] Add a small status label above the graph summarizing the outcome: e.g. "Last build: 42 modules compiled, 10 
+  skipped, 1 failed."
 
 Deliverable: The graph is recolored after each build to reflect that build's per-module outcome.
 
@@ -91,16 +90,16 @@ Tasks:
 - [x] Add `COMPILING` to the `BuildStatus` enum.
 - [x] `FinishEvent` handling remains unchanged from Phase 2.
 2. **Periodic batch flushing**
-- [x] Add an `Alarm(Alarm.ThreadToUse.SWING_THREAD)` that fires every 100ms while a build is active.
-- [x] On each tick, flush all accumulated state changes since the last tick to the UI
-  (same cell lookup + restyle + repaint logic as Phase 2's end-of-build flush).
+- [x] Periodically flush accumulated build statuses to the UI every 100ms during a build via a coroutine loop on 
+  `Dispatchers.EDT`.
+- [x] On each tick, flush all accumulated state changes since the last tick to the UI (same cell lookup + restyle +
+  repaint logic as Phase 2's end-of-build flush).
 - [x] Cancel the alarm when `FinishBuildEvent` arrives (after a final flush).
-- [x] This reuses the same `Map<ModuleNode, BuildStatus>` from Phase 2 - the only difference
-  is that changes are now also flushed periodically during the build, not only at the end.
+- [x] This reuses the same `Map<ModuleNode, BuildStatus>` from Phase 2 - the only difference is that changes are now
+  also flushed periodically during the build, not only at the end.
 3. **Threading**
-- [x] All UI updates (mxGraph style changes, repaint) run on the event dispatch thread,
-  since `Alarm.ThreadToUse.SWING_THREAD` is used for periodic flushes
-  and `ApplicationManager.getApplication().invokeLater` for the final flush.
+- [x] All UI updates (mxGraph style changes, repaint) run on the event dispatch thread, with all flushes being 
+  scheduled with `Dispatchers.EDT` in the context.
 
 Deliverable: Nodes transition through colors as their compilation tasks start and finish during a build.
 
@@ -122,12 +121,14 @@ Tasks:
    - "affected" modules (dependents that will likely be recompiled)
 - [ ] Represent these with distinct node styles (solid fill vs. outline-only).
 3. **Update on changelist changes**
-- [ ] Subscribe to `ChangeListListener` so that the preview is recomputed and the graph refreshed whenever files are added to or removed from the changelist.
+- [ ] Subscribe to `ChangeListListener` so that the preview is recomputed and the graph refreshed whenever files are
+  added to or removed from the changelist.
 4. **Banner / hint**
 - [ ] Display a banner above the graph summarizing the impact ("Current changelist touches 3 modules and 
   potentially affects 9 dependent modules.")
 
-Deliverable: The graph reflects the scope of the pending build based on the current changelist, updating as files are modified.
+Deliverable: The graph reflects the scope of the pending build based on the current changelist, updating as files 
+are modified.
 
 ## Phase 5 - ABI-aware refinement
 
