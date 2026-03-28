@@ -35,7 +35,7 @@ class BuildStatusCollector(
 
     /**
      * [ExternalSystemBuildEvent] is `@ApiStatus.Experimental` but is the only API
-     * that provides typed build events for all Gradle executions (see PLAN.md).
+     * that provides typed build events for all Gradle executions (see README.md).
      */
     @Suppress("UnstableApiUsage")
     override fun onStatusChange(event: ExternalSystemTaskNotificationEvent) {

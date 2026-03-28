@@ -23,10 +23,8 @@ Goal: Make the existing static graph robust and presentable.
 Tasks:
 
 1. **Graceful behaviour when there's no Gradle project**
-- [ ] Detect if the project has no Gradle modules (e.g., `ModuleManager` returns only IntelliJ modules not ending 
-  in `.main`).
-- [ ] In that case, show a simple message panel in the tool window:
-  "No Gradle 'main' modules detected. Open a Gradle project to view the build graph."
+- [x] Detect if the project has no Gradle modules using `GradleProjectResolverUtil.isGradleProject()`.
+- [x] In that case, the tool window added by the plugin does not appear at all.
 2. **Legend / minimal explanation inside the panel**
 - [ ] Add a small legend area (label to the side of the graph) stating:
   "Nodes = modules (Gradle main source sets). Edges = 'depends on' (A -> B means A depends on B)."

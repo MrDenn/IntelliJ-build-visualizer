@@ -72,6 +72,9 @@ Include two types of warnings in order to inform the user of possibly long compi
 # Technical decisions
 
 ### Module and dependency data gathering
+- For non-Gradle projects, the tool window added by the Plugin will not appear at all. This is implemented by checking 
+  `GradleProjectResolverUtil.isGradleProject()` in the `BuildVisualizerToolWindowFactory.isApplicableAsync()`.
+  - Both of these are used because they are built-in, single-purpose utilities that provide exactly what is needed.
 - Modules are retrieved using `ModuleManager`, then filtered to only keep those that end with ".main".
   - `ModuleManager` was chosen because it is built into IntelliJ and possesses the exact functionality needed in 
     this case: retrieving all modules in a given project.
