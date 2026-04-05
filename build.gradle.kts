@@ -1,11 +1,11 @@
 plugins {
     id("java")
-    id("org.jetbrains.kotlin.jvm") version "2.1.20"
+    id("org.jetbrains.kotlin.jvm") version "2.3.0"
     id("org.jetbrains.intellij.platform") version "2.10.2"
 }
 
 group = "io.github.MrDenn"
-version = "1.0-SNAPSHOT"
+version = "0.1-ALPHA"
 
 repositories {
     mavenCentral()
@@ -14,13 +14,12 @@ repositories {
     }
 }
 
-// Read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
 dependencies {
     implementation("org.jgrapht:jgrapht-core:1.5.2")
     implementation("com.github.vlsi.mxgraph:jgraphx:4.2.2")
 
     intellijPlatform {
-        intellijIdea("2025.2.4")
+        intellijIdea("2026.1")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
 
         // Add plugin dependencies for compilation here:
@@ -33,24 +32,26 @@ dependencies {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = "252.25557"
+            sinceBuild = "261"
+            untilBuild = "261.*"
         }
 
         changeNotes = """
             Initial version
         """.trimIndent()
     }
-}
 
-tasks {
-    // Set the JVM compatibility versions
-    withType<JavaCompile> {
-        sourceCompatibility = "21"
-        targetCompatibility = "21"
+    buildSearchableOptions = false
+
+    pluginVerification {
+        ides {
+            recommended()
+        }
     }
 }
 
 kotlin {
+    jvmToolchain(21)
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
     }
