@@ -9,18 +9,15 @@ design decisions, and, later, implementation choices.
 
 ## Contents
 
-- *TBD*
+- [Build Tools API](build-tools-api.md) – Research into the new API layer and potential benefits from
+  integrating with it
 
 ## Current focus
 
 Following up on a recent, very informative discussion, I'm currently focused on exploring:
-- Possible integrations with the promising `Build tools API` system for `Kotlin`
-- The `Skyscope` and `Skyframe` dependency graph system for `Bazel` with a variety of useful UX-focused features
-- Particularities of how `source sets` in `Gradle` are generated and ways of accurately tying them to the Gradle 
-  subprojects created by the user
+- Possible integrations with the promising **Build Tools API** system for **Kotlin**
+- The `Skyscope` + `Skyframe` dependency graph system for **Bazel** with a variety of useful UX-focused features
+- Particularities of how source sets and artifacts are generated from subprojects / modules in **Gradle**,
+  and where among these the information needed for the visualization can be found
 - Possible strategies and best practices regarding how the functionality of this project should be compartmentalized and
   decoupled (`UI` components, `API` component, `ABI` component, etc.)
-
-## Status
-
-Work in progress. Documents here will be added and revised as my understanding develops.
