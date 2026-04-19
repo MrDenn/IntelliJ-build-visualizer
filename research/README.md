@@ -11,6 +11,8 @@ design decisions, and, later, implementation choices.
 
 - [Build Tools API](build-tools-api.md) – Research into the new API layer and potential benefits from
   integrating with it
+- [Gradle Source Sets](gradle-source-sets.md) – Research into how Gradle source sets work and how they could
+  be interpreted in the visualizer
 
 ## Current focus
 
